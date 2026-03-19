@@ -1,25 +1,68 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "cleanUrls": true,
   "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "routes": [
-    { "src": "^/$", "dest": "/" },
-
-    { "src": "^/login$", "dest": "/login" },
-    { "src": "^/video$", "dest": "/video" },
-    { "src": "^/perfil$", "dest": "/perfil" },
-    { "src": "^/analytics$", "dest": "/analytics" },
-    { "src": "^/face$", "dest": "/face" },
-
-    { "src": "^/admin/dashboard$", "dest": "/admin/dashboard" },
-    { "src": "^/admin/videos$", "dest": "/admin/videos" },
-    { "src": "^/admin/categorias$", "dest": "/admin/categorias" },
-    { "src": "^/admin/comentarios$", "dest": "/admin/comentarios" },
-    { "src": "^/admin/analytics$", "dest": "/admin/analytics" },
-
-    { "src": "^/admin-setter$", "dest": "/admin-setter" },
-    { "src": "^/setup-admin$", "dest": "/setup-admin" },
-
-    { "src": "^/api/(.*)$", "dest": "/api/$1" }
+    {
+      "src": "^/$",
+      "dest": "/index.html"
+    },
+    {
+      "src": "^/index(?:\\.html)?$",
+      "dest": "/index.html"
+    },
+    {
+      "src": "^/login(?:\\.html)?$",
+      "dest": "/login.html"
+    },
+    {
+      "src": "^/video(?:\\.html)?$",
+      "dest": "/video.html"
+    },
+    {
+      "src": "^/perfil(?:\\.html)?$",
+      "dest": "/perfil.html"
+    },
+    {
+      "src": "^/analytics(?:\\.html)?$",
+      "dest": "/analytics.html"
+    },
+    {
+      "src": "^/face(?:\\.html)?$",
+      "dest": "/face.html"
+    },
+    {
+      "src": "^/admin/dashboard(?:\\.html)?$",
+      "dest": "/admin/dashboard.html"
+    },
+    {
+      "src": "^/admin/videos(?:\\.html)?$",
+      "dest": "/admin/videos.html"
+    },
+    {
+      "src": "^/admin/categorias(?:\\.html)?$",
+      "dest": "/admin/categorias.html"
+    },
+    {
+      "src": "^/admin/comentarios(?:\\.html)?$",
+      "dest": "/admin/comentarios.html"
+    },
+    {
+      "src": "^/admin/analytics(?:\\.html)?$",
+      "dest": "/admin/analytics.html"
+    },
+    {
+      "src": "^/admin-setter(?:\\.html)?$",
+      "dest": "/admin-setter.html"
+    },
+    {
+      "src": "^/setup-admin(?:\\.html)?$",
+      "dest": "/setup-admin.html"
+    },
+    {
+      "src": "^/api/(.*)$",
+      "dest": "/api/$1"
+    }
   ]
 }
+
