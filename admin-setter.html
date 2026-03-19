@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Setter - BRASFLIX</title>
+    <link rel="stylesheet" href="css/admin-setter.css" />
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Admin Manager</h1>
+        <div class="subtitle">BRASFLIX - Gerenciar Permissões de Admin & Usuário</div>
+
+        <div class="scrollable-content">
+            <div class="logged-user" id="loggedUserInfo">
+                Verificando autenticação...
+            </div>
+
+            <div class="warning">
+                <strong>⚠️ Aviso Importante:</strong><br>
+                Esta página deve ser usada apenas por administradores.<br>
+                Use com cuidado ao conceder permissões de admin.<br>
+                O campo <strong>role</strong> define o acesso: <strong>admin</strong> (total) ou <strong>user</strong> (visitante).
+            </div>
+
+            <div class="form-group">
+                <label>📋 Usuários do Firebase:</label>
+                <button class="btn-refresh" id="loadUsersBtn">🔄 Carregar Usuários</button>
+                <div class="users-list" id="usersList">
+                    <p class="muted">Clique em "Carregar Usuários" para listar</p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>👤 UID do usuário:</label>
+                <input type="text" id="userUid" placeholder="ex: uid_do_usuario" value="" />
+            </div>
+
+            <div class="form-group">
+                <label>📧 Email (Verificação):</label>
+                <input type="email" id="userEmail" placeholder="ex: pedro@exemplo.com" disabled />
+            </div>
+
+            <div class="form-group">
+                <label>👑 Role do Usuário:</label>
+                <select id="userRole">
+                    <option value="user">👤 user (Visitante)</option>
+                    <option value="admin">👑 admin (Administrador)</option>
+                </select>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-set" id="setRoleBtn">✅ Definir Role</button>
+                <button class="btn-remove" id="removeBtn" title="Remove admin access">❌ Remove</button>
+            </div>
+
+            <div id="result" class="result"></div>
+        </div>
+    </div>
+
+    <script type="module" src="js/admin-setter.js"></script>
+</body>
+</html>
