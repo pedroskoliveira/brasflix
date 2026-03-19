@@ -25,17 +25,24 @@ class GeminiClient {
         })
       });
 
-      const data = await response.json();
+      const textoBruto = await response.text();
+      let data = {};
+
+      try {
+        data = textoBruto ? JSON.parse(textoBruto) : {};
+      } catch {
+        throw new Error(textoBruto || "A resposta da IA não veio em JSON válido.");
+      }
 
       if (!response.ok) {
-        throw new Error(data?.error || "Erro ao chamar a IA Gemini.");
+        throw new Error(data?.error || data?.text || data?.texto || "Erro ao chamar a IA Gemini.");
       }
 
       return {
         ok: true,
-        provider: data.provider || this.provider,
+        provider: data.provider || data.origem || this.provider,
         model: data.model || model,
-        text: data.text || "Sem resposta da IA."
+        text: data.text || data.texto || "Sem resposta da IA."
       };
     } catch (error) {
       console.error("[Gemini] Erro:", error);
