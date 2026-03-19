@@ -20,10 +20,10 @@
         </div>
 
         <div class="nav">
-            <select>
-                <option>Português</option>
-                <option>English</option>
-                <option>Español</option>
+            <select id="languageSelect" aria-label="Selecionar idioma">
+                <option value="pt-BR">Português</option>
+                <option value="en">English</option>
+                <option value="es">Español</option>
             </select>
 
             <span id="userNome" class="user-nome oculto"></span>
@@ -32,11 +32,11 @@
         </div>
     </header>
 
-    <section class="hero">
+    <section class="hero" data-i18n-scope="home">
         <div>
-            <h1>Filmes, séries e tecnologia em um só lugar</h1>
-            <p>Assista conteúdos exclusivos da BRASFLIX quando quiser.</p>
-            <button>Começar agora</button>
+            <h1 data-i18n="heroTitle">Filmes, séries e tecnologia em um só lugar</h1>
+            <p data-i18n="heroSubtitle">Assista conteúdos exclusivos da BRASFLIX quando quiser.</p>
+            <button id="heroStartButton" data-i18n="heroButton">Começar agora</button>
         </div>
     </section>
 
@@ -274,6 +274,8 @@
     <script type="module" src="js/user-chat-widget.js"></script>
     <script type="module" src="js/videos.js"></script>
     <script type="module" src="js/voz.js"></script>
+    <script type="module" src="js/voice-controller.js"></script>
+    <script type="module" src="js/i18n.js"></script>
     <script type="module" src="js/gestos.js"></script>
 
 </body>
