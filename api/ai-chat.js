@@ -11,15 +11,23 @@ export default async function handler(req, res) {
       provider = "mistral",
       prompt = "",
       systemInstruction = "",
+      context = [],
       contexto = {}
     } = req.body || {};
 
-    if (!prompt || !prompt.trim()) {
+    if (!String(prompt || "").trim()) {
       return res.status(400).json({
         ok: false,
         error: "Prompt vazio"
       });
     }
+
+    const contextoNormalizado =
+      Array.isArray(context) && context.length
+        ? context
+        : Object.keys(contexto || {}).length
+          ? [{ role: "system", content: JSON.stringify(contexto) }]
+          : [];
 
     if (provider === "gemini") {
       const apiKey = process.env.GEMINI_API_KEY;
@@ -33,10 +41,13 @@ export default async function handler(req, res) {
 
       const textoFinal = [
         systemInstruction?.trim() || "",
-        (Array.isArray(context) && context.length)
-          ? `Contexto: ${JSON.stringify(context)}`
-          : (Object.keys(contexto || {}).length ? `Contexto: ${JSON.stringify(contexto)}` : ""),
-        `Pergunta: ${prompt}`
+        contextoNormalizado.length
+          ? "Contexto adicional:\n" +
+            contextoNormalizado
+              .map((item) => `- ${item.role || "system"}: ${item.content || ""}`)
+              .join("\n")
+          : "",
+        `Pergunta: ${String(prompt).trim()}`
       ].filter(Boolean).join("\n\n");
 
       const response = await fetch(
@@ -65,7 +76,8 @@ export default async function handler(req, res) {
       if (!response.ok) {
         return res.status(response.status).json({
           ok: false,
-          error: data?.error?.message || JSON.stringify(data)
+          provider: "gemini",
+          error: data?.error?.message || "Falha ao chamar o Gemini."
         });
       }
 
@@ -73,10 +85,9 @@ export default async function handler(req, res) {
 
       return res.status(200).json({
         ok: true,
-        ok: true,
         provider: "gemini",
         text: answer,
-        raw: data
+        model: "gemini-1.5-flash"
       });
     }
 
@@ -98,16 +109,17 @@ export default async function handler(req, res) {
       });
     }
 
-    if (Object.keys(contexto || {}).length > 0) {
+    for (const item of contextoNormalizado) {
+      if (!item?.content) continue;
       messages.push({
-        role: "system",
-        content: `[CONTEXTO]\n${JSON.stringify(contexto, null, 2)}`
+        role: item.role || "system",
+        content: String(item.content)
       });
     }
 
     messages.push({
       role: "user",
-      content: prompt.trim()
+      content: String(prompt).trim()
     });
 
     const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
@@ -117,7 +129,7 @@ export default async function handler(req, res) {
         Authorization: `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "mistral-small",
+        model: "mistral-small-latest",
         messages,
         temperature: 0.7,
         max_tokens: 1024
@@ -129,7 +141,8 @@ export default async function handler(req, res) {
     if (!response.ok) {
       return res.status(response.status).json({
         ok: false,
-        error: data?.message || JSON.stringify(data)
+        provider: "mistral",
+        error: data?.message || data?.error?.message || "Falha ao chamar o Mistral."
       });
     }
 
@@ -139,7 +152,7 @@ export default async function handler(req, res) {
       ok: true,
       provider: "mistral",
       text: answer,
-      raw: data
+      model: "mistral-small-latest"
     });
   } catch (error) {
     return res.status(500).json({
@@ -147,5 +160,4 @@ export default async function handler(req, res) {
       error: error?.message || "Erro interno"
     });
   }
-} }
 }
