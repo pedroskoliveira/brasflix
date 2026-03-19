@@ -1,10 +1,8 @@
 import { auth, db } from "./firebase-config.js";
-
 import {
   onAuthStateChanged,
   signInWithCustomToken
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
 import {
   doc,
   getDoc,
@@ -19,6 +17,7 @@ const statusEl = document.getElementById("statusFace");
 const btnIniciarCamera = document.getElementById("btnIniciarCamera");
 const btnCadastrarFace = document.getElementById("btnCadastrarFace");
 const btnEntrarFace = document.getElementById("btnEntrarFace");
+const aceitarTermos = document.getElementById("aceitarTermosFace");
 
 let stream = null;
 let modelosCarregados = false;
@@ -29,6 +28,21 @@ function atualizarStatus(texto) {
     statusEl.textContent = texto;
   }
   console.log("[FACE]", texto);
+}
+
+function atualizarVisibilidadeBotoes() {
+  if (btnEntrarFace) {
+    btnEntrarFace.style.display = stream ? "inline-flex" : "none";
+  }
+
+  const podeCadastrar = !!usuarioAtual && !!stream && (!aceitarTermos || aceitarTermos.checked);
+  if (btnCadastrarFace) {
+    btnCadastrarFace.style.display = podeCadastrar ? "inline-flex" : "none";
+  }
+
+  if (btnIniciarCamera) {
+    btnIniciarCamera.textContent = stream ? "Reiniciar câmera" : "Iniciar câmera";
+  }
 }
 
 function limparCanvas() {
@@ -107,9 +121,11 @@ async function iniciarCamera() {
 
     await video.play();
     atualizarStatus("Câmera iniciada com sucesso.");
+    atualizarVisibilidadeBotoes();
   } catch (error) {
     console.error("[FACE] Erro ao iniciar câmera:", error);
     atualizarStatus(error.message || "Erro ao iniciar câmera.");
+    atualizarVisibilidadeBotoes();
   }
 }
 
@@ -170,6 +186,12 @@ async function cadastrarFace() {
       return;
     }
 
+    if (aceitarTermos && !aceitarTermos.checked) {
+      atualizarStatus("Marque o aceite dos termos para cadastrar o rosto.");
+      atualizarVisibilidadeBotoes();
+      return;
+    }
+
     atualizarStatus("Capturando rosto para cadastro...");
     const deteccao = await capturarRosto();
 
@@ -197,6 +219,7 @@ async function cadastrarFace() {
       aceitaTermosFace: true,
       faceLoginEnabled: true,
       faceRegisteredAt: serverTimestamp(),
+      onboardingStatus: "done",
       atualizadoEm: serverTimestamp()
     });
 
@@ -256,6 +279,10 @@ function bindEvents() {
   if (btnEntrarFace) {
     btnEntrarFace.addEventListener("click", entrarComFace);
   }
+
+  if (aceitarTermos) {
+    aceitarTermos.addEventListener("change", atualizarVisibilidadeBotoes);
+  }
 }
 
 onAuthStateChanged(auth, (user) => {
@@ -266,6 +293,9 @@ onAuthStateChanged(auth, (user) => {
   } else {
     atualizarStatus("Nenhum usuário autenticado.");
   }
+
+  atualizarVisibilidadeBotoes();
 });
 
 bindEvents();
+atualizarVisibilidadeBotoes();
