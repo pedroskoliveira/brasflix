@@ -33,9 +33,9 @@ export default async function handler(req, res) {
 
       const textoFinal = [
         systemInstruction?.trim() || "",
-        Object.keys(contexto || {}).length
-          ? `Contexto: ${JSON.stringify(contexto)}`
-          : "",
+        (Array.isArray(context) && context.length)
+          ? `Contexto: ${JSON.stringify(context)}`
+          : (Object.keys(contexto || {}).length ? `Contexto: ${JSON.stringify(contexto)}` : ""),
         `Pergunta: ${prompt}`
       ].filter(Boolean).join("\n\n");
 
@@ -65,7 +65,7 @@ export default async function handler(req, res) {
       if (!response.ok) {
         return res.status(response.status).json({
           ok: false,
-          error: data
+          error: data?.error?.message || JSON.stringify(data)
         });
       }
 
@@ -73,9 +73,10 @@ export default async function handler(req, res) {
 
       return res.status(200).json({
         ok: true,
-        origem: "gemini",
-        texto: answer,
-        bruto: data
+        ok: true,
+        provider: "gemini",
+        text: answer,
+        raw: data
       });
     }
 
@@ -128,7 +129,7 @@ export default async function handler(req, res) {
     if (!response.ok) {
       return res.status(response.status).json({
         ok: false,
-        error: data
+        error: data?.message || JSON.stringify(data)
       });
     }
 
@@ -136,9 +137,9 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ok: true,
-      origem: "mistral",
-      texto: answer,
-      bruto: data
+      provider: "mistral",
+      text: answer,
+      raw: data
     });
   } catch (error) {
     return res.status(500).json({
