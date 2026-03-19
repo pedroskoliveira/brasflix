@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuração de Admin | BRASFLIX</title>
+  <style>
+    *{box-sizing:border-box} body{margin:0;font-family:Arial,sans-serif;background:#000;color:#fff;min-height:100vh;display:grid;place-items:center;padding:24px}
+    .box{max-width:760px;width:100%;background:#141414;border:1px solid #2d2d2d;border-radius:16px;padding:28px}
+    h1{margin:0 0 16px;color:#e50914} h2{margin:28px 0 10px;font-size:18px}
+    p,li{line-height:1.6;color:#ddd} code{background:#0f0f0f;padding:2px 6px;border-radius:6px} a{color:#fff}
+    .card{background:#1c1c1c;border-left:4px solid #e50914;padding:16px;border-radius:10px;margin:16px 0}
+    .warn{border-left-color:#f59e0b} .ok{border-left-color:#22c55e}
+    ol{padding-left:20px} ul{padding-left:18px}
+    .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}.btn{display:inline-block;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:700}
+    .btn-main{background:#e50914;color:#fff}.btn-alt{background:#2a2a2a;color:#fff}
+  </style>
+</head>
+<body>
+  <main class="box">
+    <h1>Setup de administrador do BRASFLIX</h1>
+    <p>Esta página foi ajustada para o seu cenário: <strong>sem terminal local</strong>, com configuração manual pelo navegador, Firebase Console, Vercel e GitHub.</p>
+
+    <div class="card warn">
+      <strong>Importante:</strong> no projeto atual, o painel admin valida o campo <code>role</code> no documento <code>usuarios/{uid}</code>. As custom claims são apenas sincronizadas depois, para reforço no backend. Então o passo principal é garantir o <code>role: "admin"</code> no Firestore.
+    </div>
+
+    <h2>Fluxo recomendado</h2>
+    <ol>
+      <li>Crie sua conta normalmente em <code>login.html</code>.</li>
+      <li>No Firebase Console, abra <strong>Firestore Database</strong>.</li>
+      <li>Entre na coleção <code>usuarios</code> e abra o documento do seu UID.</li>
+      <li>Crie ou ajuste o campo <code>role</code> com o valor exato <code>admin</code>.</li>
+      <li>Salve, faça logout e login novamente.</li>
+      <li>Acesse <code>/admin/dashboard.html</code> ou <code>/admin/dashboard</code>.</li>
+    </ol>
+
+    <div class="card ok">
+      <strong>Dica:</strong> depois que um admin válido entra no painel, o front chama <code>/api/admin-sync-claims</code> com o token do usuário. Isso permite espelhar a role em custom claims no Firebase Admin sem você precisar usar terminal local.
+    </div>
+
+    <h2>Se o documento do usuário ainda não existir</h2>
+    <ul>
+      <li>Faça login pelo menos uma vez via e-mail/senha ou Google.</li>
+      <li>O front deve criar <code>usuarios/{uid}</code> automaticamente.</li>
+      <li>Se ainda assim não aparecer, revise as regras do Firestore e as variáveis do Firebase na Vercel.</li>
+    </ul>
+
+    <h2>Checklist rápido</h2>
+    <ul>
+      <li>Authentication com Email/Senha e Google ativados</li>
+      <li>Domínio da Vercel em Authorized domains do Firebase Auth</li>
+      <li>Documento em <code>usuarios/{uid}</code> com <code>role: "admin"</code></li>
+      <li>Variáveis <code>FIREBASE_ADMIN_*</code> configuradas na Vercel</li>
+    </ul>
+
+    <div class="actions">
+      <a class="btn btn-main" href="admin-setter.html">Abrir admin-setter</a>
+      <a class="btn btn-alt" href="docs/GUIA_PUBLICACAO_FINAL.md">Abrir guia final</a>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "cleanUrls": true,
+  "buildCommand": "npm run build",
+  "routes": [
+    { "src": "^/$", "dest": "/index.html" },
+    { "src": "^/index\.html$", "dest": "/index.html" },
+
+    { "src": "^/login$", "dest": "/login.html" },
+    { "src": "^/login\.html$", "dest": "/login.html" },
+
+    { "src": "^/video$", "dest": "/video.html" },
+    { "src": "^/video\.html$", "dest": "/video.html" },
+
+    { "src": "^/perfil$", "dest": "/perfil.html" },
+    { "src": "^/perfil\.html$", "dest": "/perfil.html" },
+
+    { "src": "^/analytics$", "dest": "/analytics.html" },
+    { "src": "^/analytics\.html$", "dest": "/analytics.html" },
+
+    { "src": "^/face$", "dest": "/face.html" },
+    { "src": "^/face\.html$", "dest": "/face.html" },
+
+    { "src": "^/admin/dashboard$", "dest": "/admin/dashboard.html" },
+    { "src": "^/admin/dashboard\.html$", "dest": "/admin/dashboard.html" },
+
+    { "src": "^/admin/videos$", "dest": "/admin/videos.html" },
+    { "src": "^/admin/videos\.html$", "dest": "/admin/videos.html" },
+
+    { "src": "^/admin/categorias$", "dest": "/admin/categorias.html" },
+    { "src": "^/admin/categorias\.html$", "dest": "/admin/categorias.html" },
+
+    { "src": "^/admin/comentarios$", "dest": "/admin/comentarios.html" },
+    { "src": "^/admin/comentarios\.html$", "dest": "/admin/comentarios.html" },
+
+    { "src": "^/admin/analytics$", "dest": "/admin/analytics.html" },
+    { "src": "^/admin/analytics\.html$", "dest": "/admin/analytics.html" },
+
+    { "src": "^/admin-setter$", "dest": "/admin-setter.html" },
+    { "src": "^/setup-admin$", "dest": "/setup-admin.html" },
+
+    { "src": "^/api/(.*)$", "dest": "/api/$1" }
+  ]
+}

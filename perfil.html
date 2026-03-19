@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Perfil - BRASFLIX</title>
+
+<link rel="icon" href="imagens/logo.png">
+
+<link rel="stylesheet" href="css/estilo.css">
+<link rel="stylesheet" href="css/chatbot.css">
+<link rel="stylesheet" href="css/perfil.css">
+<link rel="stylesheet" href="css/voz.css">
+<link rel="stylesheet" href="css/gestos.css">
+
+</head>
+
+<body>
+
+<header>
+
+<div class="logo">
+<a href="index.html">
+<img src="imagens/logo.png" alt="BRASFLIX">
+</a>
+</div>
+
+<div class="nav">
+<select>
+<option>Português</option>
+<option>English</option>
+<option>Español</option>
+</select>
+
+<button class="login">Sair</button>
+</div>
+
+</header>
+
+<main class="pagina-perfil">
+
+<section class="perfil-topo">
+
+<div class="perfil-avatar-box">
+<img
+id="perfilAvatar"
+class="perfil-avatar"
+src="imagens/logo.png"
+alt="Foto do usuário">
+</div>
+
+<div class="perfil-info">
+
+<span class="perfil-tag">Meu Perfil</span>
+
+<h1 id="perfilNome"></h1>
+
+<p class="perfil-email" id="perfilEmail"></p>
+
+<div class="perfil-meta">
+
+<span>
+Plano:
+<strong id="perfilPlano"></strong>
+</span>
+
+<span>•</span>
+
+<span>
+Membro desde:
+<strong id="perfilData"></strong>
+</span>
+
+<span>•</span>
+
+<span>
+Status:
+<strong id="perfilStatus"></strong>
+</span>
+
+</div>
+
+<div class="perfil-acoes">
+
+<button class="btn-perfil-principal">
+Editar perfil
+</button>
+
+<button class="btn-perfil-secundario">
+Gerenciar preferências
+</button>
+
+</div>
+
+</div>
+
+</section>
+
+<section class="perfil-resumo">
+
+<div class="card-resumo">
+<h3>Tempo assistido</h3>
+<p id="tempoAssistido"></p>
+</div>
+
+<div class="card-resumo">
+<h3>Favoritos</h3>
+<p id="totalFavoritos"></p>
+</div>
+
+<div class="card-resumo">
+<h3>Vídeos vistos</h3>
+<p id="videosAssistidos"></p>
+</div>
+
+<div class="card-resumo">
+<h3>Taxa de conclusão</h3>
+<p id="taxaConclusao"></p>
+</div>
+
+</section>
+
+<section class="perfil-bloco">
+<h2>Categorias preferidas</h2>
+<div class="categorias-grid" id="categoriasPreferidas"></div>
+</section>
+
+<section class="perfil-bloco">
+<h2>Histórico recente</h2>
+<div class="carrossel" id="historicoPerfil"></div>
+</section>
+
+<section class="perfil-bloco">
+<h2>Favoritos recentes</h2>
+<div class="carrossel" id="favoritosPerfil"></div>
+</section>
+
+<section class="perfil-bloco">
+<h2>Mapa de consumo</h2>
+
+<div class="mapa-consumo">
+
+<div class="mapa-card">
+<h3>Horário mais ativo</h3>
+<p id="horarioAtivo"></p>
+</div>
+
+<div class="mapa-card">
+<h3>Categoria dominante</h3>
+<p id="categoriaDominante"></p>
+</div>
+
+<div class="mapa-card">
+<h3>Formato preferido</h3>
+<p id="formatoPreferido"></p>
+</div>
+
+<div class="mapa-card">
+<h3>Engajamento</h3>
+<p id="nivelEngajamento"></p>
+</div>
+
+</div>
+</section>
+
+<section class="perfil-bloco">
+<h2>Recursos inteligentes</h2>
+
+<div class="mapa-consumo">
+
+<div class="mapa-card recurso-card compacto" id="recursoGestosCard">
+
+<div class="recurso-card-topo">
+<div>
+<h3>Controle por gestos</h3>
+<p class="recurso-card-descricao">
+Ative para usar gestos na BRASFLIX.
+</p>
+</div>
+
+<div class="recurso-badge">Beta</div>
+</div>
+
+<div class="gestos-linha-principal">
+<label class="switch-gestos" for="ativarGestos">
+<input type="checkbox" id="ativarGestos">
+<span class="slider-gestos"></span>
+</label>
+
+<span class="gestos-linha-titulo">Ativar gestos</span>
+
+<button id="tutorialGestos" class="btn-perfil-secundario btn-compacto" type="button">
+Ver tutorial
+</button>
+</div>
+
+<p class="gestos-card-status" id="gestosStatusCard">
+Gestos desativados no momento.
+</p>
+
+</div>
+
+</div>
+</section>
+
+</main>
+
+<footer>
+<p>
+© 2026 BRASFLIX - DESENVOLVIDO POR
+<a href="https://www.instagram.com/pedro__srodrigues" target="_blank">
+PEDRO SIMÃO
+</a>
+</p>
+</footer>
+
+<div class="cookieBox" id="cookies">
+<p>
+Utilizamos cookies para melhorar sua experiência na plataforma.
+</p>
+<button onclick="aceitarCookies()">
+Aceitar
+</button>
+</div>
+
+<div class="chatbot-widget" id="chatbot-widget">
+
+<button
+id="chatbot-toggle"
+class="chatbot-toggle"
+aria-label="Abrir chat com PedrIA">
+💭
+</button>
+
+<div class="chatbot-window" id="chatbot-window">
+
+<header class="chatbot-header">
+
+<div class="chatbot-header-info">
+
+<div class="chatbot-avatar">😎</div>
+
+<div>
+<div class="chatbot-title">PedrIA</div>
+<div class="chatbot-subtitle">Assistente do Brasflix</div>
+</div>
+
+</div>
+
+<button class="chatbot-close" id="chatbot-close">❌</button>
+
+</header>
+
+<div class="chatbot-messages" id="chatbot-messages"></div>
+
+<form class="chatbot-form" id="chatbot-form">
+
+<input
+type="text"
+id="chatbot-input"
+class="chatbot-input"
+placeholder="Digite sua pergunta..."
+autocomplete="on"
+required>
+
+<button
+type="submit"
+class="chatbot-send-btn">
+🎬
+</button>
+
+</form>
+
+</div>
+</div>
+
+<div class="user-chat-widget" id="user-chat-widget">
+    <button id="user-chat-toggle" class="user-chat-toggle" aria-label="Abrir chat de usuários">💬</button>
+    <div id="user-chat-panel" class="user-chat-panel" aria-hidden="true">
+        <header class="user-chat-header">
+            <div>
+                <div class="user-chat-title">Chat com Usuários</div>
+                <div class="user-chat-subtitle">Toque em um contato para iniciar</div>
+            </div>
+            <button id="user-chat-close" class="user-chat-close" aria-label="Fechar">✕</button>
+        </header>
+        <input id="user-chat-search" class="user-chat-search" type="search" placeholder="Buscar contato..." />
+        <div id="user-chat-contacts" class="user-chat-contacts"></div>
+        <div id="user-chat-conversation" class="user-chat-conversation">
+            <div id="user-chat-conversation-header" class="user-chat-conversation-header">Selecione um contato</div>
+            <div id="user-chat-messages" class="user-chat-messages"></div>
+            <form id="user-chat-send-form" class="user-chat-send-form">
+                <input id="user-chat-input" class="user-chat-input" type="text" placeholder="Digite sua mensagem..." autocomplete="off" />
+                <button type="submit" class="user-chat-send-btn" aria-label="Enviar">➤</button>
+            </form>
+        </div>
+        <div id="user-chat-status" class="user-chat-status">Aguardando login...</div>
+    </div>
+    <div id="user-chat-toasts" class="user-chat-toasts" aria-live="polite" aria-atomic="true"></div>
+</div>
+
+<div class="voice-widget minimizado" id="voiceWidget">
+
+<div class="voice-panel">
+
+<div class="voice-header">
+
+<div class="voice-header-info">
+
+<div class="voice-avatar">🎙️</div>
+
+<div>
+<div class="voice-title">Assistente por voz</div>
+<div class="voice-subtitle">Comandos e leitura da PedrIA</div>
+</div>
+
+</div>
+
+<button class="voice-minimizar" id="voiceMinimizar">−</button>
+
+</div>
+
+<div class="voice-body">
+
+<div class="voice-status" id="voiceStatus"></div>
+
+<div class="voice-actions">
+
+<button class="voice-btn voice-btn-primary" id="btnOuvirComando">
+Ouvir comando
+</button>
+
+<button class="voice-btn voice-btn-secondary" id="btnLerResposta">
+Ler resposta
+</button>
+
+</div>
+
+<div class="voice-help">
+<h4>Exemplos</h4>
+<p>
+Diga: “abrir perfil”, “abrir favoritos”, “abrir analytics”.
+</p>
+</div>
+
+</div>
+
+</div>
+
+<button class="voice-toggle" id="voiceToggle">🎙️</button>
+
+</div>
+
+<button class="gestos-indicador oculto" id="gestosIndicador" type="button" aria-label="Gestos ativos">
+<span class="gestos-indicador-ponto"></span>
+<span class="gestos-indicador-texto">Gestos ativos</span>
+</button>
+
+<div class="gestos-widget minimizado" id="gestosWidget">
+<div class="gestos-panel">
+
+<div class="gestos-header">
+<div class="gestos-header-info">
+<div class="gestos-avatar">🖐️</div>
+<div>
+<div class="gestos-title">Controle por gestos</div>
+<div class="gestos-subtitle">Rodando em segundo plano</div>
+</div>
+</div>
+
+<button class="gestos-minimizar" id="gestosMinimizar" type="button">−</button>
+</div>
+
+<div class="gestos-info">
+<p id="gestoDetectado">Gestos desativados</p>
+
+<div class="gestos-panel-acoes">
+<button id="desativarGestos" class="btn-gestos-perigo" type="button">
+Desativar
+</button>
+
+<button id="abrirTutorialPainel" class="btn-gestos-secundario" type="button">
+Tutorial
+</button>
+</div>
+</div>
+
+</div>
+</div>
+
+<div class="gestos-processamento-oculto" aria-hidden="true">
+<video id="webcamGestos" autoplay playsinline muted></video>
+</div>
+
+<div class="modal-tutorial oculto" id="modalTutorialGestos">
+<div class="modal-tutorial-overlay" id="fecharTutorialOverlay"></div>
+
+<div class="modal-tutorial-box">
+<button class="modal-tutorial-fechar" id="fecharTutorialGestos" type="button">
+✕
+</button>
+
+<h3>Tutorial de gestos</h3>
+
+<p class="modal-tutorial-subtitulo">
+Teste os gestos ao vivo.
+</p>
+
+<div class="tutorial-preview">
+<video id="tutorialWebcamGestos" autoplay playsinline muted></video>
+<canvas id="tutorialCanvasGestos"></canvas>
+<div class="tutorial-status" id="tutorialStatusGesto">Faça um gesto para testar</div>
+</div>
+
+<div class="tutorial-grid">
+
+<div class="tutorial-item">
+<div class="tutorial-icone">👍</div>
+<div>
+<strong>Polegar para cima</strong>
+<span>Curtir vídeo</span>
+</div>
+</div>
+
+<div class="tutorial-item">
+<div class="tutorial-icone">👎</div>
+<div>
+<strong>Polegar para baixo</strong>
+<span>Descurtir vídeo</span>
+</div>
+</div>
+
+<div class="tutorial-item">
+<div class="tutorial-icone">✋</div>
+<div>
+<strong>Mão aberta</strong>
+<span>Pausar/Reproduzir vídeo</span>
+</div>
+</div>
+
+<div class="tutorial-item">
+<div class="tutorial-icone">✊</div>
+<div>
+<strong>Punho fechado</strong>
+<span>Abrir/Fechar chat de usuários</span>
+</div>
+</div>
+
+<div class="tutorial-item">
+<div class="tutorial-icone">🤟</div>
+<div>
+<strong>PedrIA</strong>
+<span>Abrir/Fechar chatbot</span>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+
+<script type="module" src="js/cookies.js"></script>
+<script type="module" src="js/pedria-core.js"></script>
+<script type="module" src="js/voice-intent.js"></script>
+<script type="module" src="js/chatbot.js"></script>
+<script type="module" src="js/user-chat-widget.js"></script>
+<script type="module" src="js/perfil.js"></script>
+<script type="module" src="js/voz.js"></script>
+<script type="module" src="js/gestos.js"></script>
+
+</body>
+</html>
