@@ -9,7 +9,7 @@
 <body>
     <div class="container">
         <h1>🔐 Admin Manager</h1>
-        <div class="subtitle">BRASFLIX - Gerenciar Permissões de Admin & Usuário</div>
+        <div class="subtitle">BRASFLIX - Gerenciar permissões e sincronizar claims</div>
 
         <div class="scrollable-content">
             <div class="logged-user" id="loggedUserInfo">
@@ -17,32 +17,42 @@
             </div>
 
             <div class="warning">
-                <strong>⚠️ Aviso Importante:</strong><br>
+                <strong>⚠️ Aviso importante:</strong><br>
                 Esta página deve ser usada apenas por administradores.<br>
-                Use com cuidado ao conceder permissões de admin.<br>
-                O campo <strong>role</strong> define o acesso: <strong>admin</strong> (total) ou <strong>user</strong> (visitante).
+                O campo <strong>role</strong> define o acesso no front e as <strong>custom claims</strong> reforçam o acesso no backend.<br>
+                Para o primeiro admin, use antes a página <strong>setup-admin.html</strong>.
             </div>
 
             <div class="form-group">
-                <label>📋 Usuários do Firebase:</label>
-                <button class="btn-refresh" id="loadUsersBtn">🔄 Carregar Usuários</button>
+                <label>🔎 Buscar usuário por e-mail</label>
+                <input type="email" id="searchEmail" placeholder="Digite um e-mail e clique em Buscar" />
+            </div>
+
+            <div class="button-group">
+                <button class="btn-refresh" id="searchByEmailBtn">🔍 Buscar por e-mail</button>
+                <button class="btn-refresh" id="loadUsersBtn">🔄 Carregar usuários</button>
+                <a class="btn-refresh" href="setup-admin.html" style="text-decoration:none;text-align:center;line-height:1.2">🛠 Setup do primeiro admin</a>
+            </div>
+
+            <div class="form-group">
+                <label>📋 Usuários do Firestore</label>
                 <div class="users-list" id="usersList">
-                    <p class="muted">Clique em "Carregar Usuários" para listar</p>
+                    <p class="muted">Clique em "Carregar usuários" para listar</p>
                 </div>
             </div>
 
             <div class="form-group">
-                <label>👤 UID do usuário:</label>
+                <label>👤 UID do usuário</label>
                 <input type="text" id="userUid" placeholder="ex: uid_do_usuario" value="" />
             </div>
 
             <div class="form-group">
-                <label>📧 Email (Verificação):</label>
-                <input type="email" id="userEmail" placeholder="ex: pedro@exemplo.com" disabled />
+                <label>📧 Email</label>
+                <input type="email" id="userEmail" placeholder="ex: pedro@exemplo.com" />
             </div>
 
             <div class="form-group">
-                <label>👑 Role do Usuário:</label>
+                <label>👑 Role do usuário</label>
                 <select id="userRole">
                     <option value="user">👤 user (Visitante)</option>
                     <option value="admin">👑 admin (Administrador)</option>
@@ -50,8 +60,9 @@
             </div>
 
             <div class="button-group">
-                <button class="btn-set" id="setRoleBtn">✅ Definir Role</button>
-                <button class="btn-remove" id="removeBtn" title="Remove admin access">❌ Remove</button>
+                <button class="btn-set" id="setRoleBtn">✅ Definir role</button>
+                <button class="btn-remove" id="removeBtn" title="Remove admin access">❌ Voltar para user</button>
+                <button class="btn-refresh" id="syncClaimsBtn">🔁 Sincronizar claims</button>
             </div>
 
             <div id="result" class="result"></div>
