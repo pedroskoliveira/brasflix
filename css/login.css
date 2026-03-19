@@ -446,3 +446,85 @@ body{
         font-size:21px;
     }
 }
+
+/* AJUSTES DE CADASTRO / MOBILE */
+.foto-preview.tem-imagem {
+    padding: 0;
+    border-style: solid;
+    border-color: #e50914;
+}
+
+.foto-preview span {
+    display: block;
+    line-height: 1.3;
+}
+
+@media (max-width: 900px) {
+    .pagina-login{
+        min-height: 100vh;
+        height: auto;
+        grid-template-columns: 1fr;
+        overflow: visible;
+    }
+
+    .painel-animacao{
+        min-height: auto;
+        padding: 24px 20px 0;
+    }
+
+    .logo-animacao{
+        width: 220px;
+        max-width: 62%;
+    }
+
+    .painel-formulario{
+        height: auto;
+        min-height: auto;
+        align-items: flex-start;
+        overflow: visible;
+        padding: 16px 16px 80px;
+    }
+
+    .login-box{
+        max-height: none;
+        overflow: visible;
+    }
+}
+
+@media (max-width: 640px) {
+    .body-login{
+        overflow-x: hidden;
+    }
+
+    .pagina-login{
+        min-height: 100dvh;
+    }
+
+    .painel-formulario{
+        min-height: auto;
+        padding: 10px 12px 96px;
+    }
+
+    .login-box{
+        padding: 18px 14px 28px;
+        border-radius: 16px;
+        margin-bottom: 24px;
+    }
+
+    .linha-2{
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .grupo-campo input,
+    .grupo-campo select,
+    .grupo-campo textarea{
+        font-size: 16px;
+    }
+
+    .btn-principal,
+    .btn-secundario,
+    .btn-google{
+        min-height: 48px;
+    }
+}
