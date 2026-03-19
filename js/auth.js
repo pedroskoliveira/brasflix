@@ -23,7 +23,9 @@ const ids = {
   btnAbrirRecuperar: document.getElementById("abrirRecuperar"),
   recuperarBox: document.getElementById("recuperarBox"),
   btnRecuperarEmail: document.getElementById("btnRecuperarEmail"),
-  btnRecuperarTelefone: document.getElementById("btnRecuperarTelefone")
+  btnRecuperarTelefone: document.getElementById("btnRecuperarTelefone"),
+  inputFotoPerfil: document.getElementById("fotoPerfil"),
+  fotoPreview: document.querySelector(".foto-preview")
 };
 
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
@@ -50,6 +52,43 @@ function alternarAbas() {
       botao.classList.add("ativo");
       document.getElementById(`aba-${aba}`)?.classList.add("ativo");
     });
+  });
+}
+
+function renderizarPreviewPadrao() {
+  if (!ids.fotoPreview) return;
+  ids.fotoPreview.classList.remove("tem-imagem");
+  ids.fotoPreview.innerHTML = "<span>Adicionar foto</span>";
+}
+
+function configurarPreviewFoto() {
+  if (!ids.inputFotoPerfil || !ids.fotoPreview) return;
+
+  renderizarPreviewPadrao();
+
+  ids.inputFotoPerfil.addEventListener("change", () => {
+    const file = ids.inputFotoPerfil.files?.[0];
+
+    if (!file) {
+      renderizarPreviewPadrao();
+      return;
+    }
+
+    try {
+      validarImagem(file, 2);
+    } catch (error) {
+      alertar(error.message);
+      ids.inputFotoPerfil.value = "";
+      renderizarPreviewPadrao();
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      ids.fotoPreview.classList.add("tem-imagem");
+      ids.fotoPreview.innerHTML = `<img src="${reader.result}" alt="Prévia da foto de perfil">`;
+    };
+    reader.readAsDataURL(file);
   });
 }
 
@@ -127,7 +166,10 @@ async function garantirDocumentoUsuario(usuario, dados = {}) {
     avatarPublicId: dados.avatarPublicId || existente.avatarPublicId || "",
     tipoLogin: dados.tipoLogin || existente.tipoLogin || "email",
     role: existente.role || "user",
-    perfilCompleto: typeof dados.perfilCompleto === "boolean" ? dados.perfilCompleto : (existente.perfilCompleto ?? false),
+    perfilCompleto:
+      typeof dados.perfilCompleto === "boolean"
+        ? dados.perfilCompleto
+        : (existente.perfilCompleto ?? false),
     onboardingStatus: dados.onboardingStatus || existente.onboardingStatus || "pending_face",
     faceLoginEnabled: existente.faceLoginEnabled ?? false,
     atualizadoEm: serverTimestamp()
@@ -142,12 +184,20 @@ async function garantirDocumentoUsuario(usuario, dados = {}) {
     await updateDoc(userRef, base);
   }
 
-  await setDoc(doc(db, "usuarios_publicos", usuario.uid), {
-    uid: usuario.uid,
-    nome: base.nome,
-    avatar: base.avatar,
-    atualizadoEm: serverTimestamp()
-  }, { merge: true });
+  await setDoc(
+    doc(db, "usuarios_publicos", usuario.uid),
+    {
+      uid: usuario.uid,
+      nome: base.nome,
+      avatar: base.avatar,
+      atualizadoEm: serverTimestamp()
+    },
+    { merge: true }
+  );
+}
+
+function senhaForte(senha = "") {
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/.test(senha);
 }
 
 async function cadastrarComEmail(event) {
@@ -160,6 +210,10 @@ async function cadastrarComEmail(event) {
 
   if (!nome || !email || !senha) {
     return alertar("Preencha nome, e-mail e senha.");
+  }
+
+  if (!senhaForte(senha)) {
+    return alertar("A senha deve ter 8+ caracteres, com maiúscula, minúscula, número e caractere especial.");
   }
 
   if (senha !== confirmar) {
@@ -262,7 +316,9 @@ async function recuperarPorEmail() {
 }
 
 function recuperarPorTelefone() {
-  alertar("A recuperação por SMS ainda depende da finalização do Phone Auth.");
+  alertar(
+    "A recuperação por telefone ainda não foi implementada com Firebase Phone Auth. Por enquanto, use a recuperação por e-mail."
+  );
 }
 
 async function redirecionarPorEstado(usuario) {
@@ -284,6 +340,8 @@ async function redirecionarPorEstado(usuario) {
 
 function bindEventos() {
   alternarAbas();
+  configurarPreviewFoto();
+
   ids.formCadastro?.addEventListener("submit", cadastrarComEmail);
   ids.formLogin?.addEventListener("submit", loginComEmail);
   ids.btnGoogle?.addEventListener("click", loginGoogle);
