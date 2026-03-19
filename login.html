@@ -90,6 +90,20 @@
                             <button type="button" class="btn-secundario" id="btnRecuperarTelefone">
                                 Enviar código para o telefone
                             </button>
+
+                            <div class="phone-recovery-step" id="phoneRecoveryStepCodigo">
+                                <div class="grupo-campo">
+                                    <label for="rec-codigo">Código SMS</label>
+                                    <input type="text" id="rec-codigo" placeholder="Digite o código recebido">
+                                </div>
+
+                                <button type="button" class="btn-principal" id="btnConfirmarCodigoTelefone">
+                                    Confirmar código e enviar recuperação
+                                </button>
+                            </div>
+
+                            <div id="recaptcha-container"></div>
+                            <p class="phone-recovery-status" id="phoneRecoveryStatus"></p>
                         </form>
                     </div>
                 </section>
