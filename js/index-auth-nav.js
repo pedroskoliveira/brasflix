@@ -60,7 +60,7 @@ async function atualizarNavbar(user) {
 
 if (loginButton) {
   loginButton.addEventListener("click", () => {
-    window.location.href = "login.html";
+    window.location.href = "/login.html";
   });
 }
 
@@ -70,7 +70,7 @@ if (logoutButton) {
       await signOut(auth);
       localStorage.removeItem("faceLoginUser");
       localStorage.removeItem("faceLoginEmail");
-      window.location.href = "login.html";
+      window.location.href = "/login.html";
     } catch (error) {
       console.error("[Navbar] Erro ao sair:", error);
       alert("Não foi possível sair agora.");
