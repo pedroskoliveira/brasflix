@@ -28,3 +28,4 @@ const db = getFirestore(app);
 console.log("[Firebase] Inicializado com sucesso:", firebaseConfig.projectId);
 
 export { app, auth, db, firebaseConfig };
+
