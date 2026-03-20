@@ -36,7 +36,7 @@
         <div>
             <h1 data-i18n="heroTitle">Filmes, séries e tecnologia em um só lugar</h1>
             <p data-i18n="heroSubtitle">Assista conteúdos exclusivos da BRASFLIX quando quiser.</p>
-            <button id="heroStartButton" data-i18n="heroButton">Começar agora</button>
+            <div class="hero-actions"><button id="heroStartButton" data-i18n="heroButton">Começar agora</button><button id="heroLearnMoreButton" class="hero-secondary-btn" type="button">Saiba mais</button></div>
         </div>
     </section>
 
@@ -278,5 +278,6 @@
     <script type="module" src="js/i18n.js"></script>
     <script type="module" src="js/gestos.js"></script>
 
-</body>
+<script>document.addEventListener("DOMContentLoaded",()=>{const b=document.getElementById("heroLearnMoreButton");const s=document.querySelector(".sobre");b&&s&&b.addEventListener("click",()=>s.scrollIntoView({behavior:"smooth",block:"start"}));});</script></body>
 </html>
+
