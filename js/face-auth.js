@@ -17,90 +17,67 @@ const statusEl = document.getElementById("statusFace");
 const btnIniciarCamera = document.getElementById("btnIniciarCamera");
 const btnCadastrarFace = document.getElementById("btnCadastrarFace");
 const btnEntrarFace = document.getElementById("btnEntrarFace");
-const aceitarTermos = document.getElementById("aceitarTermosFace");
+const aceitarTermos =
+  document.getElementById("aceitarTermosFace") ||
+  document.getElementById("aceitoTermosFace");
+const termosWrap = document.getElementById("termosFaceWrap");
 
 let stream = null;
 let modelosCarregados = false;
 let usuarioAtual = null;
 
-function atualizarStatus(texto) {
+function status(texto) {
   if (statusEl) {
     statusEl.textContent = texto;
   }
-  console.log("[FACE]", texto);
 }
 
-function atualizarVisibilidadeBotoes() {
+function atualizarVisibilidade() {
+  const streamAtivo = !!stream;
+
   if (btnEntrarFace) {
-    btnEntrarFace.style.display = stream ? "inline-flex" : "none";
+    btnEntrarFace.style.display = streamAtivo ? "inline-flex" : "none";
   }
 
-  const podeCadastrar = !!usuarioAtual && !!stream && (!aceitarTermos || aceitarTermos.checked);
+  if (termosWrap) {
+    termosWrap.style.display = usuarioAtual && streamAtivo ? "block" : "none";
+  }
+
   if (btnCadastrarFace) {
-    btnCadastrarFace.style.display = podeCadastrar ? "inline-flex" : "none";
+    const pode =
+      !!usuarioAtual &&
+      streamAtivo &&
+      (!aceitarTermos || aceitarTermos.checked);
+
+    btnCadastrarFace.style.display = pode ? "inline-flex" : "none";
   }
 
   if (btnIniciarCamera) {
-    btnIniciarCamera.textContent = stream ? "Reiniciar câmera" : "Iniciar câmera";
+    btnIniciarCamera.textContent = streamAtivo
+      ? "Reiniciar câmera"
+      : "Iniciar câmera";
   }
-}
-
-function limparCanvas() {
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-}
-
-function desenharDeteccao(detection) {
-  if (!canvas || !video || !detection) return;
-
-  const largura = video.videoWidth || 640;
-  const altura = video.videoHeight || 480;
-
-  canvas.width = largura;
-  canvas.height = altura;
-
-  limparCanvas();
-
-  const displaySize = { width: largura, height: altura };
-  const resizedDetection = faceapi.resizeResults(detection, displaySize);
-
-  faceapi.draw.drawDetections(canvas, resizedDetection);
-  faceapi.draw.drawFaceLandmarks(canvas, resizedDetection);
 }
 
 async function carregarModelos() {
   if (modelosCarregados) return;
 
-  atualizarStatus("Carregando modelos faciais...");
+  status("Carregando modelos faciais...");
 
-  try {
-    await Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri("./models"),
-      faceapi.nets.faceLandmark68Net.loadFromUri("./models"),
-      faceapi.nets.faceRecognitionNet.loadFromUri("./models")
-    ]);
+  await Promise.all([
+    faceapi.nets.tinyFaceDetector.loadFromUri("./models"),
+    faceapi.nets.faceLandmark68Net.loadFromUri("./models"),
+    faceapi.nets.faceRecognitionNet.loadFromUri("./models")
+  ]);
 
-    modelosCarregados = true;
-    atualizarStatus("Modelos faciais carregados.");
-  } catch (error) {
-    console.error("[FACE] Erro ao carregar modelos:", error);
-    throw new Error("Não foi possível carregar os modelos faciais da pasta ./models.");
-  }
+  modelosCarregados = true;
+  status("Modelos faciais carregados.");
 }
 
 async function iniciarCamera() {
   try {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error("Seu navegador não suporta acesso à câmera.");
-    }
-
-    if (!video) {
-      throw new Error("Elemento de vídeo não encontrado.");
-    }
-
     if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
+      stream.getTracks().forEach((t) => t.stop());
       stream = null;
     }
 
@@ -116,51 +93,62 @@ async function iniciarCamera() {
     video.srcObject = stream;
 
     await new Promise((resolve) => {
-      video.onloadedmetadata = () => resolve();
+      video.onloadedmetadata = resolve;
     });
 
     await video.play();
-    atualizarStatus("Câmera iniciada com sucesso.");
-    atualizarVisibilidadeBotoes();
+
+    status("Câmera iniciada com sucesso.");
+    atualizarVisibilidade();
   } catch (error) {
-    console.error("[FACE] Erro ao iniciar câmera:", error);
-    atualizarStatus(error.message || "Erro ao iniciar câmera.");
-    atualizarVisibilidadeBotoes();
+    console.error("[FACE]", error);
+    status(error.message || "Erro ao iniciar câmera.");
+    atualizarVisibilidade();
   }
 }
 
-async function capturarRosto() {
-  if (!video) {
-    throw new Error("Elemento de vídeo não encontrado.");
-  }
-
+async function capturar() {
   if (video.readyState < 2) {
     throw new Error("A câmera ainda não está pronta.");
   }
 
   await carregarModelos();
 
-  const deteccao = await faceapi
+  const detection = await faceapi
     .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
     .withFaceLandmarks()
     .withFaceDescriptor();
 
-  if (!deteccao) {
+  if (!detection) {
     throw new Error("Nenhum rosto detectado. Ajuste a câmera e tente novamente.");
   }
 
-  desenharDeteccao(deteccao);
+  if (canvas) {
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
 
-  return deteccao;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const resized = faceapi.resizeResults(detection, {
+      width: canvas.width,
+      height: canvas.height
+    });
+
+    faceapi.draw.drawDetections(canvas, resized);
+    faceapi.draw.drawFaceLandmarks(canvas, resized);
+  }
+
+  return detection;
 }
 
 async function garantirDocumentoUsuario(uid, email = "") {
-  const refUsuario = doc(db, "usuarios", uid);
-  const snapUsuario = await getDoc(refUsuario);
+  const ref = doc(db, "usuarios", uid);
+  const snap = await getDoc(ref);
 
-  if (!snapUsuario.exists()) {
+  if (!snap.exists()) {
     await setDoc(
-      refUsuario,
+      ref,
       {
         usuarioId: uid,
         uid,
@@ -171,42 +159,40 @@ async function garantirDocumentoUsuario(uid, email = "") {
       },
       { merge: true }
     );
-    return;
+  } else {
+    await updateDoc(ref, {
+      atualizadoEm: serverTimestamp()
+    });
   }
-
-  await updateDoc(refUsuario, {
-    atualizadoEm: serverTimestamp()
-  });
 }
 
 async function cadastrarFace() {
   try {
     if (!usuarioAtual) {
-      atualizarStatus("Faça login antes de cadastrar o rosto.");
-      return;
+      return status("Faça login antes de cadastrar o rosto.");
     }
 
     if (aceitarTermos && !aceitarTermos.checked) {
-      atualizarStatus("Marque o aceite dos termos para cadastrar o rosto.");
-      atualizarVisibilidadeBotoes();
-      return;
+      return status("Marque o aceite dos termos para cadastrar o rosto.");
     }
 
-    atualizarStatus("Capturando rosto para cadastro...");
-    const deteccao = await capturarRosto();
+    status("Capturando rosto para cadastro...");
+
+    const det = await capturar();
 
     await garantirDocumentoUsuario(usuarioAtual.uid, usuarioAtual.email || "");
 
-    const idToken = await usuarioAtual.getIdToken();
-    const descriptor = Array.from(deteccao.descriptor);
+    const token = await usuarioAtual.getIdToken();
 
     const response = await fetch("/api/face-enroll", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`
+        Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify({ descriptor })
+      body: JSON.stringify({
+        descriptor: Array.from(det.descriptor)
+      })
     });
 
     const data = await response.json();
@@ -223,29 +209,31 @@ async function cadastrarFace() {
       atualizadoEm: serverTimestamp()
     });
 
-    atualizarStatus("Rosto cadastrado com sucesso.");
+    status("Rosto cadastrado com sucesso.");
 
     setTimeout(() => {
-      window.location.href = "index.html";
+      location.href = "index.html";
     }, 1200);
   } catch (error) {
-    console.error("[FACE] Erro no cadastro facial:", error);
-    atualizarStatus(error.message || "Erro no cadastro facial.");
+    console.error("[FACE]", error);
+    status(error.message || "Erro no cadastro facial.");
   }
 }
 
 async function entrarComFace() {
   try {
-    atualizarStatus("Capturando rosto para login...");
-    const deteccao = await capturarRosto();
-    const descriptor = Array.from(deteccao.descriptor);
+    status("Capturando rosto para login...");
+
+    const det = await capturar();
 
     const response = await fetch("/api/face-login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ descriptor })
+      body: JSON.stringify({
+        descriptor: Array.from(det.descriptor)
+      })
     });
 
     const data = await response.json();
@@ -256,46 +244,24 @@ async function entrarComFace() {
 
     await signInWithCustomToken(auth, data.customToken);
 
-    atualizarStatus("Login facial realizado com sucesso.");
+    status("Login facial realizado com sucesso.");
 
     setTimeout(() => {
-      window.location.href = "index.html";
+      location.href = "index.html";
     }, 1000);
   } catch (error) {
-    console.error("[FACE] Erro no login facial:", error);
-    atualizarStatus(error.message || "Erro no login facial.");
-  }
-}
-
-function bindEvents() {
-  if (btnIniciarCamera) {
-    btnIniciarCamera.addEventListener("click", iniciarCamera);
-  }
-
-  if (btnCadastrarFace) {
-    btnCadastrarFace.addEventListener("click", cadastrarFace);
-  }
-
-  if (btnEntrarFace) {
-    btnEntrarFace.addEventListener("click", entrarComFace);
-  }
-
-  if (aceitarTermos) {
-    aceitarTermos.addEventListener("change", atualizarVisibilidadeBotoes);
+    console.error("[FACE]", error);
+    status(error.message || "Erro no login facial.");
   }
 }
 
 onAuthStateChanged(auth, (user) => {
   usuarioAtual = user || null;
-
-  if (usuarioAtual) {
-    atualizarStatus(`Usuário autenticado: ${usuarioAtual.email || usuarioAtual.uid}`);
-  } else {
-    atualizarStatus("Nenhum usuário autenticado.");
-  }
-
-  atualizarVisibilidadeBotoes();
+  atualizarVisibilidade();
 });
 
-bindEvents();
-atualizarVisibilidadeBotoes();
+btnIniciarCamera?.addEventListener("click", iniciarCamera);
+btnCadastrarFace?.addEventListener("click", cadastrarFace);
+btnEntrarFace?.addEventListener("click", entrarComFace);
+aceitarTermos?.addEventListener("change", atualizarVisibilidade);
+document.addEventListener("DOMContentLoaded", atualizarVisibilidade);
