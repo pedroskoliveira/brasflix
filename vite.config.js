@@ -14,6 +14,7 @@ export default defineConfig({
         index: resolve(__dirname, "index.html"),
         login: resolve(__dirname, "login.html"),
         perfil: resolve(__dirname, "perfil.html"),
+        users: resolve(__dirname, "usuarios.html"),
         analytics: resolve(__dirname, "analytics.html"),
         face: resolve(__dirname, "face.html"),
         video: resolve(__dirname, "video.html"),
@@ -28,3 +29,4 @@ export default defineConfig({
     }
   }
 });
+
