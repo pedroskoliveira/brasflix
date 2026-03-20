@@ -1,21 +1,14 @@
 class GeminiClient {
   constructor() {
     this.provider = "gemini";
-    this.defaultModel = "gemini-1.5-flash";
+    this.defaultModel = "gemini-2.5-flash";
   }
 
-  async sendMessage({
-    message,
-    context = [],
-    systemInstruction = "Você é o assistente inteligente da plataforma BRASFLIX. Responda em português do Brasil de forma clara, útil e objetiva.",
-    model = this.defaultModel
-  }) {
+  async sendMessage({ message, context = [], systemInstruction = "", model = this.defaultModel }) {
     try {
       const response = await fetch("/api/ai-chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           provider: this.provider,
           model,
@@ -25,41 +18,31 @@ class GeminiClient {
         })
       });
 
-      const textoBruto = await response.text();
+      const raw = await response.text();
       let data = {};
-
       try {
-        data = textoBruto ? JSON.parse(textoBruto) : {};
+        data = raw ? JSON.parse(raw) : {};
       } catch {
-        throw new Error(textoBruto || "A resposta da IA não veio em JSON válido.");
+        throw new Error(raw || "A resposta do servidor não veio em JSON válido.");
       }
 
-      if (!response.ok) {
-        throw new Error(data?.error || data?.text || data?.texto || "Erro ao chamar a IA Gemini.");
+      if (!response.ok || !data?.ok) {
+        throw new Error(data?.error || data?.text || "Erro ao chamar Gemini.");
       }
 
       return {
         ok: true,
-        provider: data.provider || data.origem || this.provider,
+        provider: data.provider || this.provider,
         model: data.model || model,
-        text: data.text || data.texto || "Sem resposta da IA."
+        text: data.text || "Sem resposta da IA.",
+        notice: data.notice || ""
       };
     } catch (error) {
       console.error("[Gemini] Erro:", error);
-      return {
-        ok: false,
-        provider: this.provider,
-        model,
-        text: "Não consegui responder agora. Tente novamente em instantes.",
-        error: error.message
-      };
+      return { ok: false, provider: this.provider, model, error: error.message, text: "" };
     }
   }
 }
-
 const geminiClient = new GeminiClient();
-
-window.GeminiClient = GeminiClient;
 window.geminiClient = geminiClient;
-
 export { GeminiClient, geminiClient };
