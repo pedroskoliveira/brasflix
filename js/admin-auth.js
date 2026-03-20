@@ -61,3 +61,4 @@ onAuthStateChanged(auth, async (user) => {
   destacarMenuAtual();
   conectarLogout();
 });
+
