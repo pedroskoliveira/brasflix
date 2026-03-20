@@ -5,7 +5,9 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
-  onAuthStateChanged
+  onAuthStateChanged,
+  setPersistence,
+  browserSessionPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   doc,
@@ -30,6 +32,14 @@ const ids = {
 
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+async function prepararSessao() {
+  try {
+    await setPersistence(auth, browserSessionPersistence);
+  } catch (error) {
+    console.error("[Auth] Não foi possível ajustar persistência de sessão:", error);
+  }
+}
 
 function valor(id) {
   return document.getElementById(id)?.value?.trim() || "";
@@ -164,6 +174,12 @@ async function garantirDocumentoUsuario(usuario, dados = {}) {
     numero: dados.numero || existente.numero || "",
     avatar: dados.avatar || existente.avatar || usuario.photoURL || "",
     avatarPublicId: dados.avatarPublicId || existente.avatarPublicId || "",
+    username: dados.username || existente.username || "",
+    bio: dados.bio || existente.bio || "",
+    seguidores: Array.isArray(existente.seguidores) ? existente.seguidores : [],
+    seguindo: Array.isArray(existente.seguindo) ? existente.seguindo : [],
+    categoriasFavoritas: Array.isArray(dados.categoriasFavoritas) ? dados.categoriasFavoritas : (Array.isArray(existente.categoriasFavoritas) ? existente.categoriasFavoritas : []),
+    mostrarPerfilPublico: typeof dados.mostrarPerfilPublico === "boolean" ? dados.mostrarPerfilPublico : (existente.mostrarPerfilPublico ?? true),
     tipoLogin: dados.tipoLogin || existente.tipoLogin || "email",
     role: existente.role || "user",
     perfilCompleto:
@@ -189,7 +205,11 @@ async function garantirDocumentoUsuario(usuario, dados = {}) {
     {
       uid: usuario.uid,
       nome: base.nome,
+      username: base.username || "",
+      bio: base.bio || "",
       avatar: base.avatar,
+      categoriasFavoritas: base.categoriasFavoritas || [],
+      mostrarPerfilPublico: base.mostrarPerfilPublico ?? true,
       atualizadoEm: serverTimestamp()
     },
     { merge: true }
@@ -221,6 +241,7 @@ async function cadastrarComEmail(event) {
   }
 
   try {
+    await prepararSessao();
     const cred = await createUserWithEmailAndPassword(auth, email, senha);
     const usuario = cred.user;
 
@@ -230,6 +251,9 @@ async function cadastrarComEmail(event) {
       nome,
       email,
       telefone: valor("telefone"),
+      username: valor("username") || nome.toLowerCase().replace(/[^a-z0-9]+/g, ""),
+      bio: valor("bio"),
+      categoriasFavoritas: valor("categorias-favoritas").split(",").map((item) => item.trim()).filter(Boolean),
       cpf: valor("cpf"),
       dataNascimento: valor("data-nascimento"),
       cep: valor("cep"),
@@ -262,6 +286,7 @@ async function loginComEmail(event) {
   }
 
   try {
+    await prepararSessao();
     const cred = await signInWithEmailAndPassword(auth, email, senha);
     await redirecionarPorEstado(cred.user);
   } catch (error) {
@@ -272,6 +297,7 @@ async function loginComEmail(event) {
 
 async function loginGoogle() {
   try {
+    await prepararSessao();
     const provider = new GoogleAuthProvider();
     const cred = await signInWithPopup(auth, provider);
     const userRef = doc(db, "usuarios", cred.user.uid);
@@ -358,3 +384,4 @@ onAuthStateChanged(auth, async (usuario) => {
 });
 
 document.addEventListener("DOMContentLoaded", bindEventos);
+
