@@ -1,321 +1,117 @@
 import { auth, db } from "./firebase-config.js";
-import {
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { doc, getDoc, getDocs, collection, query, where, orderBy, limit, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-import {
-  doc,
-  getDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-  orderBy,
-  limit
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const qs = new URLSearchParams(location.search);
+const targetUid = qs.get("uid");
+let currentUser = null;
+let currentProfile = null;
+let viewedProfile = null;
 
-const perfilAvatar = document.getElementById("perfilAvatar");
-const perfilNome = document.getElementById("perfilNome");
-const perfilEmail = document.getElementById("perfilEmail");
-const perfilPlano = document.getElementById("perfilPlano");
-const perfilData = document.getElementById("perfilData");
-const perfilStatus = document.getElementById("perfilStatus");
+const els = {
+  avatar: document.getElementById("perfilAvatar"),
+  nome: document.getElementById("perfilNome"),
+  username: document.getElementById("perfilUsername"),
+  email: document.getElementById("perfilEmail"),
+  bio: document.getElementById("perfilBio"),
+  seguidores: document.getElementById("perfilSeguidores"),
+  seguindo: document.getElementById("perfilSeguindo"),
+  conversas: document.getElementById("perfilConversas"),
+  favoritos: document.getElementById("totalFavoritos"),
+  categorias: document.getElementById("categoriasPreferidas"),
+  sugestoes: document.getElementById("sugestoesPerfil"),
+  listaSeguidores: document.getElementById("listaSeguidores"),
+  listaSeguindo: document.getElementById("listaSeguindo"),
+  historico: document.getElementById("historicoPerfil"),
+  favs: document.getElementById("favoritosPerfil"),
+  btnFollow: document.getElementById("btnFollowPerfil"),
+  btnConversar: document.getElementById("btnConversarPerfil"),
+  btnMensagens: document.getElementById("btnAbrirMensagens")
+};
 
-const tempoAssistido = document.getElementById("tempoAssistido");
-const totalFavoritos = document.getElementById("totalFavoritos");
-const videosAssistidos = document.getElementById("videosAssistidos");
-const taxaConclusao = document.getElementById("taxaConclusao");
-
-const horarioAtivo = document.getElementById("horarioAtivo");
-const categoriaDominante = document.getElementById("categoriaDominante");
-const formatoPreferido = document.getElementById("formatoPreferido");
-const nivelEngajamento = document.getElementById("nivelEngajamento");
-
-const categoriasContainer = document.getElementById("categoriasPreferidas");
-const historicoContainer = document.getElementById("historicoPerfil");
-const favoritosContainer = document.getElementById("favoritosPerfil");
-
-function formatarData(valor) {
-  if (!valor) return "—";
-
-  const data = valor.toDate ? valor.toDate() : new Date(valor);
-  if (Number.isNaN(data.getTime())) return "—";
-
-  return data.toLocaleDateString("pt-BR");
+function avatarOf(user={}) { return user.avatar || user.fotoURL || "imagens/logo.png"; }
+function usernameOf(user={}) { return user.username || user.apelido || (user.nome || 'usuario').toLowerCase().replace(/[^a-z0-9]+/g,''); }
+function listOrEmpty(el, html) { if (el) el.innerHTML = html || '<div class="social-empty">Nada por aqui ainda.</div>'; }
+function videoCard(video={}) { return `<a class="social-video-card" href="video.html?id=${encodeURIComponent(video.id || '')}"><img src="${video.thumbnail || video.capa || video.imagem || 'imagens/logo.png'}" alt="${video.titulo || 'Vídeo'}"><div class="social-video-card-content"><strong>${video.titulo || 'Vídeo'}</strong><p>${video.categoria || 'Sem categoria'}</p></div></a>`; }
+function personCard(user={}) { return `<div class="social-person"><img src="${avatarOf(user)}" alt="${user.nome || 'Usuário'}"><div><div class="social-person-name">${user.nome || 'Usuário'}</div><div class="social-person-meta">@${usernameOf(user)}</div></div><div class="social-person-actions"><a href="perfil.html?uid=${encodeURIComponent(user.uid || user.id)}">Ver perfil</a><button type="button" class="primary btn-conversar" data-uid="${user.uid || user.id}">Conversar</button></div></div>`; }
+function setTexts(profile={}) {
+  if (els.avatar) els.avatar.src = avatarOf(profile);
+  if (els.nome) els.nome.textContent = profile.nome || 'Usuário';
+  if (els.username) els.username.textContent = '@' + usernameOf(profile);
+  if (els.email) els.email.textContent = profile.email || '';
+  if (els.bio) els.bio.textContent = profile.bio || 'Sem bio por enquanto.';
+  if (els.seguidores) els.seguidores.textContent = String((profile.seguidores || []).length || 0);
+  if (els.seguindo) els.seguindo.textContent = String((profile.seguindo || []).length || 0);
+  if (els.favoritos) els.favoritos.textContent = String((profile.favoritos || []).length || 0);
+  if (els.categorias) els.categorias.innerHTML = (profile.categoriasFavoritas || []).map((item) => `<span class="chip">${item}</span>`).join('') || '<div class="social-empty">Nenhuma categoria favorita.</div>';
 }
-
-function obterImagemVideo(video = {}) {
-  return (
-    video.thumbnail ||
-    video.capa ||
-    video.imagem ||
-    "imagens/logo.png"
-  );
+async function loadUser(uid) { const snap = await getDoc(doc(db,'usuarios',uid)); return snap.exists() ? { id:snap.id, ...snap.data(), uid } : null; }
+async function loadUsersByIds(ids=[]) { const items = []; for (const id of ids.slice(0,12)) { const user = await loadUser(id); if (user) items.push(user); } return items; }
+async function countConversations(uid) { try { const snap = await getDocs(query(collection(db,'chatRooms'), where('participantes','array-contains',uid))); return snap.size; } catch { return 0; } }
+async function renderPeopleList(el, ids=[]) { const users = await loadUsersByIds(ids); listOrEmpty(el, users.map(personCard).join('')); bindConversationButtons(el, users); }
+function bindConversationButtons(container, users=[]) { container?.querySelectorAll('.btn-conversar').forEach((btn) => { btn.addEventListener('click', () => { const uid = btn.dataset.uid; const user = users.find((u) => (u.uid || u.id) === uid); if (window.BrasflixUserChat?.openConversationWith && user) window.BrasflixUserChat.openConversationWith({ uid: user.uid || user.id, nome: user.nome || '', email: user.email || '', fotoURL: avatarOf(user) }); else alert('O chat de usuários ainda não carregou.'); }); }); }
+async function renderSuggestions() {
+  const all = await getDocs(collection(db,'usuarios'));
+  const mineCats = new Set(currentProfile?.categoriasFavoritas || []);
+  const candidates = [];
+  all.forEach((d) => { const user = { id:d.id, ...d.data(), uid:d.data().uid || d.id }; if (!currentUser || user.uid === currentUser.uid) return; const score = (user.categoriasFavoritas || []).filter((cat) => mineCats.has(cat)).length; candidates.push({ ...user, score }); });
+  candidates.sort((a,b) => b.score - a.score || (a.nome||'').localeCompare(b.nome||'', 'pt-BR'));
+  const users = candidates.slice(0,6);
+  listOrEmpty(els.sugestoes, users.map((u) => `<div class="social-person"><img src="${avatarOf(u)}"><div><div class="social-person-name">${u.nome || 'Usuário'}</div><div class="social-person-meta">${u.score ? `Interesses em comum: ${u.score}` : '@' + usernameOf(u)}</div></div><div class="social-person-actions"><button type="button" class="primary btn-follow-suggestion" data-uid="${u.uid}">${(currentProfile?.seguindo || []).includes(u.uid) ? 'Seguindo' : 'Seguir'}</button><button type="button" class="btn-suggestion-chat" data-uid="${u.uid}">Conversar</button></div></div>`).join(''));
+  els.sugestoes?.querySelectorAll('.btn-follow-suggestion').forEach((btn) => btn.addEventListener('click', () => toggleFollow(btn.dataset.uid)));
+  els.sugestoes?.querySelectorAll('.btn-suggestion-chat').forEach((btn) => { btn.addEventListener('click', () => { const user = users.find((u) => u.uid === btn.dataset.uid); if (user && window.BrasflixUserChat?.openConversationWith) window.BrasflixUserChat.openConversationWith({ uid:user.uid, nome:user.nome||'', email:user.email||'', fotoURL:avatarOf(user) }); }); });
 }
-
-function obterCategoriaVideo(video = {}) {
-  return video.categoria || video.genero || video.tag || "Sem categoria";
+async function toggleFollow(uid) {
+  if (!currentUser || !currentProfile || !viewedProfile) return alert('Faça login para seguir usuários.');
+  const myRef = doc(db,'usuarios', currentUser.uid);
+  const targetRef = doc(db,'usuarios', uid);
+  const following = (currentProfile.seguindo || []).includes(uid);
+  await updateDoc(myRef, { seguindo: following ? arrayRemove(uid) : arrayUnion(uid) });
+  await updateDoc(targetRef, { seguidores: following ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid) });
+  currentProfile = await loadUser(currentUser.uid);
+  viewedProfile = await loadUser(targetUid || currentUser.uid);
+  setTexts(viewedProfile);
+  updateFollowButton();
+  await renderPeopleList(els.listaSeguidores, viewedProfile?.seguidores || []);
+  await renderPeopleList(els.listaSeguindo, viewedProfile?.seguindo || []);
+  await renderSuggestions();
 }
-
-function criarCardVideo(video = {}) {
-  const item = document.createElement("a");
-  item.className = "card";
-  item.href = `video.html?id=${encodeURIComponent(video.id || "")}`;
-  item.setAttribute("aria-label", `Abrir ${video.titulo || "vídeo"}`);
-
-  item.innerHTML = `
-    <img src="${obterImagemVideo(video)}" alt="${video.titulo || "Vídeo"}">
-    <div class="card-overlay">
-      <h3>${video.titulo || "Sem título"}</h3>
-      <p>${obterCategoriaVideo(video)}</p>
-    </div>
-  `;
-
-  return item;
+function updateFollowButton() {
+  if (!els.btnFollow || !currentUser || !viewedProfile) return;
+  if ((viewedProfile.uid || viewedProfile.id) === currentUser.uid) { els.btnFollow.style.display = 'none'; return; }
+  const following = (currentProfile?.seguindo || []).includes(viewedProfile.uid || viewedProfile.id);
+  els.btnFollow.textContent = following ? 'Seguindo' : 'Seguir';
 }
-
-function criarCategoria(nome = "") {
-  const chip = document.createElement("div");
-  chip.className = "categoria-card";
-  chip.textContent = nome;
-  return chip;
+async function renderMedia(uid) {
+  const historicoSnap = await getDocs(query(collection(db,'historico_visualizacoes'), where('userId','==',uid), orderBy('timestamp','desc'), limit(6)));
+  const hist = historicoSnap.docs.map((d) => ({ id:d.id, ...d.data() }));
+  listOrEmpty(els.historico, hist.map(videoCard).join(''));
+  const profile = viewedProfile || {};
+  listOrEmpty(els.favs, (profile.favoritos || []).slice(0,6).map(videoCard).join(''));
 }
-
-function definirTexto(el, texto) {
-  if (el) el.textContent = texto;
-}
-
-function mostrarListaVazia(container, mensagem) {
-  if (!container) return;
-  container.innerHTML = `<div class="estado-vazio-lista"><p>${mensagem}</p></div>`;
-}
-
-function renderizarHistorico(lista = []) {
-  if (!historicoContainer) return;
-
-  historicoContainer.innerHTML = "";
-
-  if (!lista.length) {
-    mostrarListaVazia(historicoContainer, "Nenhum vídeo no histórico ainda.");
-    return;
-  }
-
-  lista.forEach((video) => historicoContainer.appendChild(criarCardVideo(video)));
-}
-
-function renderizarFavoritos(lista = []) {
-  if (!favoritosContainer) return;
-
-  favoritosContainer.innerHTML = "";
-
-  if (!lista.length) {
-    mostrarListaVazia(favoritosContainer, "Nenhum favorito salvo ainda.");
-    return;
-  }
-
-  lista.forEach((video) => favoritosContainer.appendChild(criarCardVideo(video)));
-}
-
-function renderizarCategorias(lista = []) {
-  if (!categoriasContainer) return;
-
-  categoriasContainer.innerHTML = "";
-
-  if (!lista.length) {
-    mostrarListaVazia(categoriasContainer, "Nenhuma categoria preferida ainda.");
-    return;
-  }
-
-  lista.forEach((categoria) => categoriasContainer.appendChild(criarCategoria(categoria)));
-}
-
-function extrairCategorias(historico = [], favoritos = []) {
-  const categorias = [...historico, ...favoritos]
-    .map((video) => obterCategoriaVideo(video))
-    .filter(Boolean)
-    .filter((categoria) => categoria !== "Sem categoria");
-
-  return [...new Set(categorias)];
-}
-
-function calcularHorarioMaisAtivo(historicoDocs = []) {
-  if (!historicoDocs.length) return "Ainda sem dados";
-
-  const contagemHoras = new Map();
-
-  historicoDocs.forEach((item) => {
-    const data = item.timestamp?.toDate ? item.timestamp.toDate() : null;
-    if (!data) return;
-    const hora = data.getHours();
-    contagemHoras.set(hora, (contagemHoras.get(hora) || 0) + 1);
+async function init() {
+  onAuthStateChanged(auth, async (user) => {
+    currentUser = user || null;
+    if (!user && !targetUid) location.href = 'login.html';
+    if (user) currentProfile = await loadUser(user.uid);
+    viewedProfile = await loadUser(targetUid || user?.uid);
+    if (!viewedProfile) return;
+    setTexts(viewedProfile);
+    if (els.conversas) els.conversas.textContent = String(await countConversations(viewedProfile.uid || viewedProfile.id));
+    await renderPeopleList(els.listaSeguidores, viewedProfile?.seguidores || []);
+    await renderPeopleList(els.listaSeguindo, viewedProfile?.seguindo || []);
+    await renderMedia(viewedProfile.uid || viewedProfile.id);
+    if (user) await renderSuggestions();
+    updateFollowButton();
   });
-
-  let melhorHora = null;
-  let maior = 0;
-
-  contagemHoras.forEach((valor, chave) => {
-    if (valor > maior) {
-      maior = valor;
-      melhorHora = chave;
+  els.btnFollow?.addEventListener('click', () => toggleFollow(viewedProfile?.uid || viewedProfile?.id));
+  els.btnMensagens?.addEventListener('click', () => document.getElementById('user-chat-toggle')?.click());
+  els.btnConversar?.addEventListener('click', () => {
+    if (!viewedProfile) return;
+    if (window.BrasflixUserChat?.openConversationWith) {
+      window.BrasflixUserChat.openConversationWith({ uid:viewedProfile.uid || viewedProfile.id, nome:viewedProfile.nome || '', email:viewedProfile.email || '', fotoURL: avatarOf(viewedProfile) });
     }
   });
-
-  if (melhorHora === null) return "Ainda sem dados";
-
-  return `${String(melhorHora).padStart(2, "0")}:00`;
 }
 
-function calcularCategoriaDominante(historico = [], favoritos = []) {
-  const categorias = [...historico, ...favoritos]
-    .map((video) => obterCategoriaVideo(video))
-    .filter(Boolean);
-
-  if (!categorias.length) return "Ainda sem dados";
-
-  const mapa = new Map();
-
-  categorias.forEach((categoria) => {
-    mapa.set(categoria, (mapa.get(categoria) || 0) + 1);
-  });
-
-  let melhor = "";
-  let maior = 0;
-
-  mapa.forEach((valor, chave) => {
-    if (valor > maior) {
-      maior = valor;
-      melhor = chave;
-    }
-  });
-
-  return melhor || "Ainda sem dados";
-}
-
-function calcularFormatoPreferido(historico = [], favoritos = []) {
-  const lista = [...historico, ...favoritos];
-
-  if (!lista.length) return "Ainda sem dados";
-
-  const formatos = lista.map((video) => {
-    const titulo = (video.titulo || "").toLowerCase();
-    if (titulo.includes("série")) return "Séries";
-    if (titulo.includes("document")) return "Documentários";
-    return "Vídeos";
-  });
-
-  const mapa = new Map();
-
-  formatos.forEach((item) => {
-    mapa.set(item, (mapa.get(item) || 0) + 1);
-  });
-
-  let melhor = "";
-  let maior = 0;
-
-  mapa.forEach((valor, chave) => {
-    if (valor > maior) {
-      maior = valor;
-      melhor = chave;
-    }
-  });
-
-  return melhor || "Vídeos";
-}
-
-function calcularEngajamento(totalHistorico = 0, totalFavoritosUsuario = 0) {
-  const pontuacao = totalHistorico + totalFavoritosUsuario * 2;
-
-  if (pontuacao >= 20) return "Muito alto";
-  if (pontuacao >= 10) return "Alto";
-  if (pontuacao >= 5) return "Médio";
-  if (pontuacao >= 1) return "Inicial";
-  return "Baixo";
-}
-
-async function carregarPerfil(uid, user) {
-  try {
-    const usuarioSnap = await getDoc(doc(db, "usuarios", uid));
-    const usuario = usuarioSnap.exists() ? usuarioSnap.data() : {};
-
-    const historicoQuery = query(
-      collection(db, "historico_visualizacoes"),
-      where("userId", "==", uid),
-      orderBy("timestamp", "desc"),
-      limit(12)
-    );
-
-    const historicoSnap = await getDocs(historicoQuery);
-    const historicoDocs = historicoSnap.docs.map((docItem) => docItem.data());
-
-    const historicoVideos = historicoDocs.map((item) => ({
-      id: item.videoId,
-      titulo: item.videoTitulo || "Vídeo",
-      categoria: item.categoria || "Sem categoria",
-      thumbnail: item.thumbnail || item.capa || item.imagem || "imagens/logo.png"
-    }));
-
-    const favoritos = Array.isArray(usuario.favoritos) ? usuario.favoritos : [];
-    const categorias = Array.isArray(usuario.categoriasPreferidas) && usuario.categoriasPreferidas.length
-      ? usuario.categoriasPreferidas
-      : extrairCategorias(historicoVideos, favoritos);
-
-    const totalTempo = historicoDocs.reduce((acc, item) => acc + Number(item.tempoAssistido || 0), 0);
-    const totalVideos = historicoDocs.length;
-    const totalFavs = favoritos.length;
-
-    definirTexto(perfilNome, usuario.nome || user.displayName || "Usuário");
-    definirTexto(perfilEmail, usuario.email || user.email || "—");
-    definirTexto(perfilPlano, usuario.plano || "Padrão");
-    definirTexto(perfilData, formatarData(usuario.criadoEm || user.metadata?.creationTime));
-    definirTexto(perfilStatus, usuario.faceLoginEnabled ? "Verificado" : "Ativo");
-
-    if (perfilAvatar) {
-      perfilAvatar.src = usuario.avatar || usuario.fotoURL || user.photoURL || "imagens/logo.png";
-    }
-
-    definirTexto(tempoAssistido, `${Math.floor(totalTempo / 60)} min`);
-    definirTexto(totalFavoritos, `${totalFavs}`);
-    definirTexto(videosAssistidos, `${totalVideos}`);
-    definirTexto(taxaConclusao, totalVideos ? "Boa" : "—");
-
-    definirTexto(horarioAtivo, calcularHorarioMaisAtivo(historicoDocs));
-    definirTexto(categoriaDominante, calcularCategoriaDominante(historicoVideos, favoritos));
-    definirTexto(formatoPreferido, calcularFormatoPreferido(historicoVideos, favoritos));
-    definirTexto(nivelEngajamento, calcularEngajamento(totalVideos, totalFavs));
-
-    renderizarCategorias(categorias);
-    renderizarHistorico(historicoVideos.slice(0, 8));
-    renderizarFavoritos(favoritos.slice(0, 8));
-  } catch (error) {
-    console.error("[Perfil] Erro ao carregar perfil:", error);
-
-    definirTexto(perfilNome, "Usuário");
-    definirTexto(perfilEmail, "—");
-    definirTexto(perfilPlano, "—");
-    definirTexto(perfilData, "—");
-    definirTexto(perfilStatus, "—");
-
-    definirTexto(tempoAssistido, "0 min");
-    definirTexto(totalFavoritos, "0");
-    definirTexto(videosAssistidos, "0");
-    definirTexto(taxaConclusao, "—");
-
-    definirTexto(horarioAtivo, "Ainda sem dados");
-    definirTexto(categoriaDominante, "Ainda sem dados");
-    definirTexto(formatoPreferido, "Ainda sem dados");
-    definirTexto(nivelEngajamento, "Baixo");
-
-    renderizarCategorias([]);
-    renderizarHistorico([]);
-    renderizarFavoritos([]);
-  }
-}
-
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    window.location.href = "login.html";
-    return;
-  }
-
-  await carregarPerfil(user.uid, user);
-});
+document.addEventListener('DOMContentLoaded', init);
