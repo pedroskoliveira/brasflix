@@ -3,199 +3,140 @@ import { AIEngine } from "./ai-engine.js";
 const TOPICOS = [
   { label: "Vídeos", prompt: "Quais vídeos ou conteúdos você me recomenda agora na BRASFLIX?" },
   { label: "Perfil", prompt: "Como eu vejo e edito meu perfil na BRASFLIX?" },
+  { label: "Pessoas", prompt: "Como eu encontro pessoas e converso com outros usuários na BRASFLIX?" },
   { label: "Analytics", prompt: "Explique o que aparece na página de analytics da BRASFLIX." },
-  { label: "Login", prompt: "Como faço login, cadastro e recuperação de senha na BRASFLIX?" },
   { label: "Admin", prompt: "Como funciona o acesso de administrador na BRASFLIX?" }
 ];
-
-function escaparHtml(texto = "") {
-  return String(texto)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
 
 const ChatbotBRASFLIX = {
   elementos: {},
   ultimaResposta: "",
-  primeiraMensagemInserida: false,
+  saudacaoInserida: false,
 
   iniciar() {
     this.criarFallbackSeNecessario();
-    this.mapearElementos();
-    this.injetarTopicosRapidos();
-    this.bindEventos();
-
-    if (this.elementos.mensagens && !this.elementos.mensagens.children.length) {
-      this.adicionarMensagem(
-        "bot",
-        "Olá! Eu sou a PedrIA da BRASFLIX. Posso recomendar vídeos, explicar recursos da plataforma, ajudar com sua conta e orientar sobre o painel admin."
-      );
-    }
-  },
-
-  mapearElementos() {
-    this.elementos.widget = document.getElementById("chatbot-widget");
-    this.elementos.toggle = document.getElementById("chatbot-toggle");
-    this.elementos.window = document.getElementById("chatbot-window");
-    this.elementos.close = document.getElementById("chatbot-close");
-    this.elementos.form = document.getElementById("chatbot-form");
-    this.elementos.input = document.getElementById("chatbot-input");
-    this.elementos.mensagens = document.getElementById("chatbot-messages");
-    this.elementos.topicos = document.getElementById("chatbot-topics");
+    this.mapear();
+    this.injetarTopicos();
+    this.registrarEventos();
+    this.inserirSaudacao();
   },
 
   criarFallbackSeNecessario() {
     if (document.getElementById("chatbot-widget")) return;
-
-    const widget = document.createElement("div");
-    widget.className = "chatbot-widget";
-    widget.id = "chatbot-widget";
-    widget.innerHTML = `
+    const wrapper = document.createElement("div");
+    wrapper.className = "chatbot-widget";
+    wrapper.id = "chatbot-widget";
+    wrapper.innerHTML = `
       <button id="chatbot-toggle" class="chatbot-toggle" aria-label="Abrir chat com PedrIA" type="button">💭</button>
       <div class="chatbot-window" id="chatbot-window">
         <header class="chatbot-header">
           <div class="chatbot-header-info">
             <div class="chatbot-avatar">😎</div>
-            <div>
-              <div class="chatbot-title">PedrIA</div>
-              <div class="chatbot-subtitle">Assistente do Brasflix</div>
-            </div>
+            <div><div class="chatbot-title">PedrIA</div><div class="chatbot-subtitle">Assistente do Brasflix</div></div>
           </div>
-          <button class="chatbot-close" id="chatbot-close" aria-label="Fechar chat" type="button">❌</button>
+          <button class="chatbot-close" id="chatbot-close" type="button">✕</button>
         </header>
         <div class="chatbot-messages" id="chatbot-messages"></div>
-        <div class="chatbot-topics" id="chatbot-topics"></div>
         <form class="chatbot-form" id="chatbot-form">
-          <input id="chatbot-input" class="chatbot-input" type="text" placeholder="Pergunte algo para a PedrIA" autocomplete="off">
-          <button type="submit" class="chatbot-send-btn">🎬</button>
+          <input type="text" id="chatbot-input" class="chatbot-input" placeholder="Digite sua pergunta..." autocomplete="on" required>
+          <button type="submit" class="chatbot-send-btn">➤</button>
         </form>
-      </div>
-    `;
-    document.body.appendChild(widget);
+      </div>`;
+    document.body.appendChild(wrapper);
   },
 
-  injetarTopicosRapidos() {
-    if (!this.elementos.topicos && this.elementos.window) {
-      const barra = document.createElement("div");
-      barra.id = "chatbot-topics";
-      barra.className = "chatbot-topics";
-      this.elementos.window.insertBefore(barra, this.elementos.form);
-      this.elementos.topicos = barra;
-    }
-
-    if (!this.elementos.topicos) return;
-
-    this.elementos.topicos.innerHTML = TOPICOS.map(
-      (item) =>
-        `<button class="chatbot-topic-btn" type="button" data-prompt="${escaparHtml(item.prompt)}">${escaparHtml(
-          item.label
-        )}</button>`
-    ).join("");
+  mapear() {
+    this.elementos = {
+      widget: document.getElementById("chatbot-widget"),
+      toggle: document.getElementById("chatbot-toggle"),
+      window: document.getElementById("chatbot-window"),
+      close: document.getElementById("chatbot-close"),
+      mensagens: document.getElementById("chatbot-messages"),
+      form: document.getElementById("chatbot-form"),
+      input: document.getElementById("chatbot-input")
+    };
   },
 
-  bindEventos() {
-    this.elementos.toggle?.addEventListener("click", () => this.alternarPainel());
-    this.elementos.close?.addEventListener("click", () => this.fecharPainel());
+  injetarTopicos() {
+    if (!this.elementos.window || this.elementos.window.querySelector(".chatbot-topicos")) return;
+    const barra = document.createElement("div");
+    barra.className = "chatbot-topicos";
+    barra.innerHTML = TOPICOS.map((item) => `<button type="button" class="chatbot-topico" data-prompt="${item.prompt.replaceAll('"', '&quot;')}">${item.label}</button>`).join("");
+    this.elementos.window.insertBefore(barra, this.elementos.mensagens);
+    barra.querySelectorAll(".chatbot-topico").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const prompt = btn.dataset.prompt || "";
+        this.elementos.input.value = prompt;
+        await this.enviarMensagem();
+      });
+    });
+  },
+
+  registrarEventos() {
+    this.elementos.toggle?.addEventListener("click", () => this.abrir());
+    this.elementos.close?.addEventListener("click", () => this.fechar());
     this.elementos.form?.addEventListener("submit", async (event) => {
       event.preventDefault();
       await this.enviarMensagem();
     });
-
-    this.elementos.topicos?.addEventListener("click", async (event) => {
-      const botao = event.target.closest(".chatbot-topic-btn");
-      if (!botao) return;
-      const prompt = botao.dataset.prompt?.trim();
-      if (!prompt) return;
-      this.abrirPainel();
-      this.elementos.input.value = prompt;
-      await this.enviarMensagem();
-    });
   },
 
-  abrirPainel() {
+  abrir() {
     this.elementos.widget?.classList.add("aberto");
+    setTimeout(() => this.elementos.input?.focus(), 60);
   },
 
-  fecharPainel() {
+  fechar() {
     this.elementos.widget?.classList.remove("aberto");
   },
 
-  alternarPainel() {
-    if (!this.elementos.widget) return;
-    this.elementos.widget.classList.toggle("aberto");
+  inserirSaudacao() {
+    if (this.saudacaoInserida || !this.elementos.mensagens) return;
+    this.saudacaoInserida = true;
+    this.adicionarMensagem("bot", "Olá! Eu sou a PedrIA. Posso ajudar com vídeos, perfil, pessoas, analytics, administrador e navegação pela BRASFLIX.", { scroll: false });
   },
 
-  adicionarMensagem(tipo, texto) {
+  adicionarMensagem(tipo, texto, options = {}) {
     if (!this.elementos.mensagens) return;
-
-    const bloco = document.createElement("div");
-    const mapa = {
-      user: "chatbot-message-user",
-      bot: "chatbot-message-bot",
-      system: "chatbot-message-system"
-    };
-
-    bloco.className = `chatbot-message ${mapa[tipo] || "chatbot-message-bot"}`;
-    bloco.innerHTML = escaparHtml(String(texto || "")).replace(/\n/g, "<br>");
-    this.elementos.mensagens.appendChild(bloco);
-
-    if (tipo !== "system") {
-      this.ultimaResposta = tipo === "bot" ? String(texto || "") : this.ultimaResposta;
-    }
-
-    if (this.primeiraMensagemInserida) {
+    const item = document.createElement("div");
+    item.className = `chatbot-message chatbot-message-${tipo}`;
+    item.textContent = texto;
+    this.elementos.mensagens.appendChild(item);
+    if (options.scroll !== false) {
       this.elementos.mensagens.scrollTop = this.elementos.mensagens.scrollHeight;
-    } else {
-      this.primeiraMensagemInserida = true;
-      this.elementos.mensagens.scrollTop = 0;
     }
+    if (tipo === "bot") this.ultimaResposta = texto;
   },
 
-  removerMensagensSistema() {
-    this.elementos.mensagens?.querySelectorAll(".chatbot-message-system").forEach((item) => item.remove());
+  removerPensando() {
+    this.elementos.mensagens?.querySelectorAll(".chatbot-message-system").forEach((el) => el.remove());
   },
 
   async enviarMensagem() {
     const texto = this.elementos.input?.value?.trim();
     if (!texto) return;
-
     this.adicionarMensagem("user", texto);
     this.elementos.input.value = "";
     this.adicionarMensagem("system", "Pensando...");
 
-    try {
-      const resposta = await AIEngine.gerar({
-        prompt: texto,
-        provider: "gemini",
-        incluirContextoUsuario: true,
-        system:
-          "Você é a PedrIA da BRASFLIX. Ajude com recomendações, navegação na plataforma, conta, vídeos, analytics e acesso admin."
-      });
+    const resposta = await AIEngine.gerar({
+      prompt: texto,
+      provider: "gemini",
+      incluirContextoUsuario: true,
+      system: "Você é a PedrIA da BRASFLIX. Ajude em português do Brasil, de forma prática e amigável."
+    });
 
-      this.removerMensagensSistema();
-
-      if (!resposta?.sucesso) {
-        this.adicionarMensagem(
-          "bot",
-          resposta?.erro || "Não consegui responder agora. Verifique as chaves da IA ou tente novamente em instantes."
-        );
-        return;
-      }
-
-      this.adicionarMensagem("bot", resposta.texto || "Sem resposta no momento.");
-    } catch (error) {
-      console.error("[Chatbot] Erro:", error);
-      this.removerMensagensSistema();
-      this.adicionarMensagem("bot", error?.message || "Ocorreu um erro ao falar com a IA.");
+    this.removerPensando();
+    if (!resposta?.sucesso) {
+      this.adicionarMensagem("bot", resposta?.erro || "Não consegui responder agora.");
+      return;
     }
+    this.adicionarMensagem("bot", resposta.texto || "Sem resposta no momento.");
   }
 };
 
 document.addEventListener("DOMContentLoaded", () => ChatbotBRASFLIX.iniciar());
 window.ChatbotBRASFLIX = ChatbotBRASFLIX;
-
 export { ChatbotBRASFLIX };
+
 
