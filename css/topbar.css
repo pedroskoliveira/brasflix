@@ -1,0 +1,90 @@
+body.tem-topbar {
+  padding-top: 82px;
+}
+
+.brasflix-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  background: rgba(7, 7, 7, 0.94);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #1f1f1f;
+}
+
+.brasflix-topbar .topbar-left,
+.brasflix-topbar .topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.topbar-logo {
+  font-weight: 800;
+  color: #fff;
+  text-decoration: none;
+  letter-spacing: 0.5px;
+}
+
+.topbar-logo span {
+  color: #e50914;
+}
+
+.topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #3a1515;
+  background: transparent;
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.topbar-btn:hover,
+.topbar-btn.ativo {
+  background: #1b0b0b;
+  border-color: #e50914;
+}
+
+.topbar-btn.sair {
+  background: #e50914;
+  border-color: #e50914;
+  font-weight: 700;
+}
+
+.topbar-btn.sair:hover {
+  background: #b20710;
+  border-color: #b20710;
+}
+
+@media (max-width: 760px) {
+  body.tem-topbar {
+    padding-top: 118px;
+  }
+
+  .brasflix-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .brasflix-topbar .topbar-right {
+    width: 100%;
+  }
+
+  .brasflix-topbar .topbar-left,
+  .brasflix-topbar .topbar-right {
+    gap: 8px;
+  }
+}
