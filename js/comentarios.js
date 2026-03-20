@@ -1,191 +1,140 @@
-import { auth, db } from "./firebase-config.js";
+import { AIEngine } from "./ai-engine.js";
 
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  where
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const TOPICOS = [
+  { label: "Vídeos", prompt: "Quais vídeos ou conteúdos você me recomenda agora na BRASFLIX?" },
+  { label: "Perfil", prompt: "Como eu vejo e edito meu perfil na BRASFLIX?" },
+  { label: "Pessoas", prompt: "Como eu encontro pessoas e converso com outros usuários na BRASFLIX?" },
+  { label: "Analytics", prompt: "Explique o que aparece na página de analytics da BRASFLIX." },
+  { label: "Admin", prompt: "Como funciona o acesso de administrador na BRASFLIX?" }
+];
 
-const comentariosContainer =
-  document.getElementById("listaComentariosVideo") ||
-  document.getElementById("comentariosContainer");
+const ChatbotBRASFLIX = {
+  elementos: {},
+  ultimaResposta: "",
+  saudacaoInserida: false,
 
-const estadoVazioComentarios = document.getElementById("estadoVazioComentarios");
+  iniciar() {
+    this.criarFallbackSeNecessario();
+    this.mapear();
+    this.injetarTopicos();
+    this.registrarEventos();
+    this.inserirSaudacao();
+  },
 
-const formComentario =
-  document.getElementById("formNovoComentario") ||
-  document.querySelector(".form-comentario");
+  criarFallbackSeNecessario() {
+    if (document.getElementById("chatbot-widget")) return;
+    const wrapper = document.createElement("div");
+    wrapper.className = "chatbot-widget";
+    wrapper.id = "chatbot-widget";
+    wrapper.innerHTML = `
+      <button id="chatbot-toggle" class="chatbot-toggle" aria-label="Abrir chat com PedrIA" type="button">💭</button>
+      <div class="chatbot-window" id="chatbot-window">
+        <header class="chatbot-header">
+          <div class="chatbot-header-info">
+            <div class="chatbot-avatar">😎</div>
+            <div><div class="chatbot-title">PedrIA</div><div class="chatbot-subtitle">Assistente do Brasflix</div></div>
+          </div>
+          <button class="chatbot-close" id="chatbot-close" type="button">✕</button>
+        </header>
+        <div class="chatbot-messages" id="chatbot-messages"></div>
+        <form class="chatbot-form" id="chatbot-form">
+          <input type="text" id="chatbot-input" class="chatbot-input" placeholder="Digite sua pergunta..." autocomplete="on" required>
+          <button type="submit" class="chatbot-send-btn">➤</button>
+        </form>
+      </div>`;
+    document.body.appendChild(wrapper);
+  },
 
-const inputComentario =
-  document.getElementById("inputComentario") ||
-  document.querySelector(".form-comentario textarea");
+  mapear() {
+    this.elementos = {
+      widget: document.getElementById("chatbot-widget"),
+      toggle: document.getElementById("chatbot-toggle"),
+      window: document.getElementById("chatbot-window"),
+      close: document.getElementById("chatbot-close"),
+      mensagens: document.getElementById("chatbot-messages"),
+      form: document.getElementById("chatbot-form"),
+      input: document.getElementById("chatbot-input")
+    };
+  },
 
-let videoIdAtual = null;
-let cancelarComentarios = null;
-
-function detectarVideoAtual() {
-  const params = new URLSearchParams(window.location.search);
-  videoIdAtual = params.get("id");
-  return videoIdAtual;
-}
-
-function escaparHtml(texto = "") {
-  return String(texto)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function renderizarVazio() {
-  if (estadoVazioComentarios) {
-    estadoVazioComentarios.style.display = "flex";
-  }
-
-  if (comentariosContainer) {
-    comentariosContainer.innerHTML = "";
-  }
-}
-
-function renderizarComentario(comentario) {
-  if (!comentariosContainer) return;
-
-  const podeExcluir = comentario.userId === auth.currentUser?.uid;
-
-  const div = document.createElement("div");
-  div.className = "card-comentario";
-
-  div.innerHTML = `
-    <div class="comentario-autor">
-      <strong>${escaparHtml(comentario.nomeAutor || "Anônimo")}</strong>
-      <span class="comentario-data">
-        ${new Date(comentario.timestamp?.toDate?.() || Date.now()).toLocaleDateString("pt-BR")}
-      </span>
-    </div>
-
-    <p class="comentario-texto">${escaparHtml(comentario.texto || "")}</p>
-
-    <div class="comentario-acoes">
-      ${podeExcluir ? `<button class="btn-comentario-deletar" data-id="${comentario.id}">🗑️ Deletar</button>` : ""}
-    </div>
-  `;
-
-  const btnDelete = div.querySelector(".btn-comentario-deletar");
-  if (btnDelete) {
-    btnDelete.addEventListener("click", async () => {
-      try {
-        await deleteDoc(doc(db, "comentarios", comentario.id));
-      } catch (error) {
-        console.error("[Comentários] Erro ao excluir comentário:", error);
-      }
-    });
-  }
-
-  comentariosContainer.appendChild(div);
-}
-
-function carregarComentarios(videoId) {
-  if (!videoId || !comentariosContainer) return;
-
-  if (cancelarComentarios) {
-    cancelarComentarios();
-    cancelarComentarios = null;
-  }
-
-  const consulta = query(
-    collection(db, "comentarios"),
-    where("videoId", "==", videoId),
-    orderBy("timestamp", "desc")
-  );
-
-  cancelarComentarios = onSnapshot(
-    consulta,
-    (snapshot) => {
-      comentariosContainer.innerHTML = "";
-
-      if (snapshot.empty) {
-        renderizarVazio();
-        return;
-      }
-
-      if (estadoVazioComentarios) {
-        estadoVazioComentarios.style.display = "none";
-      }
-
-      snapshot.forEach((docSnap) => {
-        renderizarComentario({
-          id: docSnap.id,
-          ...docSnap.data()
-        });
+  injetarTopicos() {
+    if (!this.elementos.window || this.elementos.window.querySelector(".chatbot-topicos")) return;
+    const barra = document.createElement("div");
+    barra.className = "chatbot-topicos";
+    barra.innerHTML = TOPICOS.map((item) => `<button type="button" class="chatbot-topico" data-prompt="${item.prompt.replaceAll('"', '&quot;')}">${item.label}</button>`).join("");
+    this.elementos.window.insertBefore(barra, this.elementos.mensagens);
+    barra.querySelectorAll(".chatbot-topico").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const prompt = btn.dataset.prompt || "";
+        this.elementos.input.value = prompt;
+        await this.enviarMensagem();
       });
-    },
-    (error) => {
-      console.error("[Comentários] Erro ao carregar comentários:", error);
-      renderizarVazio();
+    });
+  },
+
+  registrarEventos() {
+    this.elementos.toggle?.addEventListener("click", () => this.abrir());
+    this.elementos.close?.addEventListener("click", () => this.fechar());
+    this.elementos.form?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await this.enviarMensagem();
+    });
+  },
+
+  abrir() {
+    this.elementos.widget?.classList.add("aberto");
+    setTimeout(() => this.elementos.input?.focus(), 60);
+  },
+
+  fechar() {
+    this.elementos.widget?.classList.remove("aberto");
+  },
+
+  inserirSaudacao() {
+    if (this.saudacaoInserida || !this.elementos.mensagens) return;
+    this.saudacaoInserida = true;
+    this.adicionarMensagem("bot", "Olá! Eu sou a PedrIA. Posso ajudar com vídeos, perfil, pessoas, analytics, administrador e navegação pela BRASFLIX.", { scroll: false });
+  },
+
+  adicionarMensagem(tipo, texto, options = {}) {
+    if (!this.elementos.mensagens) return;
+    const item = document.createElement("div");
+    item.className = `chatbot-message chatbot-message-${tipo}`;
+    item.textContent = texto;
+    this.elementos.mensagens.appendChild(item);
+    if (options.scroll !== false) {
+      this.elementos.mensagens.scrollTop = this.elementos.mensagens.scrollHeight;
     }
-  );
-}
+    if (tipo === "bot") this.ultimaResposta = texto;
+  },
 
-async function enviarComentario(event) {
-  event.preventDefault();
+  removerPensando() {
+    this.elementos.mensagens?.querySelectorAll(".chatbot-message-system").forEach((el) => el.remove());
+  },
 
-  if (!auth.currentUser) {
-    alert("Você precisa estar logado para comentar.");
-    return;
-  }
+  async enviarMensagem() {
+    const texto = this.elementos.input?.value?.trim();
+    if (!texto) return;
+    this.adicionarMensagem("user", texto);
+    this.elementos.input.value = "";
+    this.adicionarMensagem("system", "Pensando...");
 
-  if (!videoIdAtual) {
-    alert("Vídeo não identificado.");
-    return;
-  }
-
-  const texto = inputComentario?.value?.trim();
-
-  if (!texto) return;
-
-  try {
-    await addDoc(collection(db, "comentarios"), {
-      videoId: videoIdAtual,
-      userId: auth.currentUser.uid,
-      nomeAutor: auth.currentUser.displayName || auth.currentUser.email || "Usuário",
-      texto,
-      timestamp: serverTimestamp()
+    const resposta = await AIEngine.gerar({
+      prompt: texto,
+      provider: "gemini",
+      incluirContextoUsuario: true,
+      system: "Você é a PedrIA da BRASFLIX. Ajude em português do Brasil, de forma prática e amigável."
     });
 
-    if (inputComentario) {
-      inputComentario.value = "";
+    this.removerPensando();
+    if (!resposta?.sucesso) {
+      this.adicionarMensagem("bot", resposta?.erro || "Não consegui responder agora.");
+      return;
     }
-  } catch (error) {
-    console.error("[Comentários] Erro ao enviar comentário:", error);
-    alert("Não foi possível enviar o comentário.");
+    this.adicionarMensagem("bot", resposta.texto || "Sem resposta no momento.");
   }
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  const videoId = detectarVideoAtual();
-
-  if (videoId) {
-    carregarComentarios(videoId);
-  }
-
-  if (formComentario) {
-    formComentario.addEventListener("submit", enviarComentario);
-  }
-});
-
-window.BrasflixComentarios = {
-  carregarComentarios,
-  detectarVideoAtual
 };
 
-export {
-  carregarComentarios,
-  detectarVideoAtual
-};
+document.addEventListener("DOMContentLoaded", () => ChatbotBRASFLIX.iniciar());
+window.ChatbotBRASFLIX = ChatbotBRASFLIX;
+export { ChatbotBRASFLIX };
