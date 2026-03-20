@@ -247,3 +247,12 @@ function iniciarChatUsuarios() {
 }
 
 iniciarChatUsuarios();
+
+window.BrasflixUserChat = {
+  openConversationWith(contato) {
+    if (!contato) return;
+    abrirOuCriarConversa(contato);
+  },
+  openPanel() { ui.abrirPainel(); },
+  closePanel() { ui.fecharPainel(); }
+};
