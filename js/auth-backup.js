@@ -4,3 +4,4 @@ export const AuthBackup = {
   versao: "backup-estavel",
   ativo: false
 };
+
