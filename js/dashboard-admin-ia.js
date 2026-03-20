@@ -1,9 +1,4 @@
-/**
- * ================================================
- * DASHBOARD ADMIN INTELIGENTE COM IA
- * ================================================
- * IA fornece insights sobre plataforma
- */
+
 
 import { AIEngine } from "./ai-engine.js";
 import { db } from "./firebase-config.js";
@@ -199,3 +194,4 @@ Identifique:
 
 window.DashboardAdminIA = DashboardAdminIA;
 export { DashboardAdminIA };
+
