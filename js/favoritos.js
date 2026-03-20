@@ -1,254 +1,267 @@
 import { auth, db } from "./firebase-config.js";
 import {
-  onAuthStateChanged
+  onAuthStateChanged,
+  signInWithCustomToken
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-
 import {
-  arrayRemove,
-  arrayUnion,
   doc,
   getDoc,
-  onSnapshot,
   setDoc,
-  updateDoc
+  updateDoc,
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-const favoritosGrid = document.getElementById("favoritosGrid");
-const estadoVazioFavoritos = document.getElementById("estadoVazioFavoritos");
-const categoriasFavoritas = document.getElementById("categoriasFavoritas");
-const estadoVazioCategorias = document.getElementById("estadoVazioCategorias");
-const contadorFavoritos = document.getElementById("contadorFavoritos");
+const video = document.getElementById("videoFace");
+const canvas = document.getElementById("canvasFace");
+const statusEl = document.getElementById("statusFace");
+const btnIniciarCamera = document.getElementById("btnIniciarCamera");
+const btnCadastrarFace = document.getElementById("btnCadastrarFace");
+const btnEntrarFace = document.getElementById("btnEntrarFace");
+const aceitarTermos =
+  document.getElementById("aceitarTermosFace") ||
+  document.getElementById("aceitoTermosFace");
+const termosWrap = document.getElementById("termosFaceWrap");
 
-function obterImagemVideo(video = {}) {
-  return video.thumbnail || video.capa || video.imagem || "imagens/logo.png";
+let stream = null;
+let modelosCarregados = false;
+let usuarioAtual = null;
+
+function status(texto) {
+  if (statusEl) {
+    statusEl.textContent = texto;
+  }
 }
 
-function obterCategoriaVideo(video = {}) {
-  return video.categoria || video.genero || video.tag || "Sem categoria";
-}
+function atualizarVisibilidade() {
+  const streamAtivo = !!stream;
 
-function criarCardFavorito(video = {}) {
-  const artigo = document.createElement("article");
-  artigo.className = "card-favorito";
-
-  artigo.innerHTML = `
-    <a href="video.html?id=${encodeURIComponent(video.id || "")}" class="card-favorito-link">
-      <img src="${obterImagemVideo(video)}" alt="${video.titulo || "Vídeo"}">
-      <div class="card-favorito-conteudo">
-        <h3>${video.titulo || "Sem título"}</h3>
-        <p>${obterCategoriaVideo(video)}</p>
-      </div>
-    </a>
-  `;
-
-  return artigo;
-}
-
-function atualizarEstadoFavoritos(listaFavoritos = []) {
-  if (!favoritosGrid) return;
-
-  favoritosGrid.innerHTML = "";
-  if (contadorFavoritos) {
-    contadorFavoritos.textContent = `${listaFavoritos.length} itens`;
+  if (btnEntrarFace) {
+    btnEntrarFace.style.display = streamAtivo ? "inline-flex" : "none";
   }
 
-  if (!listaFavoritos.length) {
-    if (estadoVazioFavoritos) estadoVazioFavoritos.style.display = "flex";
-    favoritosGrid.style.display = "none";
-    return;
+  if (termosWrap) {
+    termosWrap.style.display = usuarioAtual && streamAtivo ? "block" : "none";
   }
 
-  if (estadoVazioFavoritos) estadoVazioFavoritos.style.display = "none";
-  favoritosGrid.style.display = "grid";
+  if (btnCadastrarFace) {
+    const pode =
+      !!usuarioAtual &&
+      streamAtivo &&
+      (!aceitarTermos || aceitarTermos.checked);
 
-  listaFavoritos.forEach((video) => {
-    favoritosGrid.appendChild(criarCardFavorito(video));
-  });
-}
-
-function atualizarCategoriasFavoritas(listaCategorias = []) {
-  if (!categoriasFavoritas) return;
-
-  categoriasFavoritas.innerHTML = "";
-
-  if (!listaCategorias.length) {
-    if (estadoVazioCategorias) estadoVazioCategorias.style.display = "flex";
-    categoriasFavoritas.style.display = "none";
-    return;
+    btnCadastrarFace.style.display = pode ? "inline-flex" : "none";
   }
 
-  if (estadoVazioCategorias) estadoVazioCategorias.style.display = "none";
-  categoriasFavoritas.style.display = "flex";
-
-  listaCategorias.forEach((categoria) => {
-    const chip = document.createElement("span");
-    chip.className = "chip-categoria";
-    chip.textContent = categoria;
-    categoriasFavoritas.appendChild(chip);
-  });
+  if (btnIniciarCamera) {
+    btnIniciarCamera.textContent = streamAtivo
+      ? "Reiniciar câmera"
+      : "Iniciar câmera";
+  }
 }
 
-function extrairCategoriasDosFavoritos(listaFavoritos = []) {
-  const categorias = listaFavoritos
-    .map((video) => obterCategoriaVideo(video))
-    .filter(Boolean)
-    .filter((categoria) => categoria !== "Sem categoria");
+async function carregarModelos() {
+  if (modelosCarregados) return;
 
-  return [...new Set(categorias)];
+  status("Carregando modelos faciais...");
+
+  await Promise.all([
+    faceapi.nets.tinyFaceDetector.loadFromUri("./models"),
+    faceapi.nets.faceLandmark68Net.loadFromUri("./models"),
+    faceapi.nets.faceRecognitionNet.loadFromUri("./models")
+  ]);
+
+  modelosCarregados = true;
+  status("Modelos faciais carregados.");
 }
 
-async function garantirUsuario(uid) {
+async function iniciarCamera() {
+  try {
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      stream = null;
+    }
+
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "user",
+        width: { ideal: 640 },
+        height: { ideal: 480 }
+      },
+      audio: false
+    });
+
+    video.srcObject = stream;
+
+    await new Promise((resolve) => {
+      video.onloadedmetadata = resolve;
+    });
+
+    await video.play();
+
+    status("Câmera iniciada com sucesso.");
+    atualizarVisibilidade();
+  } catch (error) {
+    console.error("[FACE]", error);
+    status(error.message || "Erro ao iniciar câmera.");
+    atualizarVisibilidade();
+  }
+}
+
+async function capturar() {
+  if (video.readyState < 2) {
+    throw new Error("A câmera ainda não está pronta.");
+  }
+
+  await carregarModelos();
+
+  const detection = await faceapi
+    .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+    .withFaceLandmarks()
+    .withFaceDescriptor();
+
+  if (!detection) {
+    throw new Error("Nenhum rosto detectado. Ajuste a câmera e tente novamente.");
+  }
+
+  if (canvas) {
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const resized = faceapi.resizeResults(detection, {
+      width: canvas.width,
+      height: canvas.height
+    });
+
+    faceapi.draw.drawDetections(canvas, resized);
+    faceapi.draw.drawFaceLandmarks(canvas, resized);
+  }
+
+  return detection;
+}
+
+async function garantirDocumentoUsuario(uid, email = "") {
   const ref = doc(db, "usuarios", uid);
   const snap = await getDoc(ref);
 
   if (!snap.exists()) {
-    await setDoc(ref, {
-      usuarioId: uid,
-      role: "user",
-      favoritos: [],
-      categoriasFavoritas: []
-    }, { merge: true });
-  }
-}
-
-async function adicionarFavorito(video = {}) {
-  if (!auth.currentUser) {
-    alert("Faça login para favoritar.");
-    return null;
-  }
-
-  if (!video?.id) return null;
-
-  const payload = {
-    id: video.id,
-    titulo: video.titulo || "Vídeo",
-    categoria: video.categoria || "Sem categoria",
-    thumbnail: video.thumbnail || video.capa || video.imagem || ""
-  };
-
-  try {
-    const uid = auth.currentUser.uid;
-    await garantirUsuario(uid);
-
-    const ref = doc(db, "usuarios", uid);
-    const snap = await getDoc(ref);
-    const dados = snap.exists() ? snap.data() : {};
-    const favoritosAtuais = Array.isArray(dados.favoritos) ? dados.favoritos : [];
-
-    const jaExiste = favoritosAtuais.some((item) => item.id === payload.id);
-    if (jaExiste) return true;
-
-    const novaLista = [...favoritosAtuais, payload];
-    const novasCategorias = extrairCategoriasDosFavoritos(novaLista);
-
+    await setDoc(
+      ref,
+      {
+        usuarioId: uid,
+        uid,
+        email,
+        role: "user",
+        criadoEm: serverTimestamp(),
+        atualizadoEm: serverTimestamp()
+      },
+      { merge: true }
+    );
+  } else {
     await updateDoc(ref, {
-      favoritos: arrayUnion(payload),
-      categoriasFavoritas: novasCategorias
+      atualizadoEm: serverTimestamp()
     });
-
-    return true;
-  } catch (error) {
-    console.error("[Favoritos] Erro ao adicionar favorito:", error);
-    return null;
   }
 }
 
-async function removerFavorito(videoId = "") {
-  if (!auth.currentUser || !videoId) return null;
-
+async function cadastrarFace() {
   try {
-    const uid = auth.currentUser.uid;
-    const ref = doc(db, "usuarios", uid);
-    const snap = await getDoc(ref);
-
-    if (!snap.exists()) return null;
-
-    const dados = snap.data() || {};
-    const favoritosAtuais = Array.isArray(dados.favoritos) ? dados.favoritos : [];
-    const alvo = favoritosAtuais.find((item) => item.id === videoId);
-
-    if (!alvo) return true;
-
-    const novaLista = favoritosAtuais.filter((item) => item.id !== videoId);
-    const novasCategorias = extrairCategoriasDosFavoritos(novaLista);
-
-    await updateDoc(ref, {
-      favoritos: arrayRemove(alvo),
-      categoriasFavoritas: novasCategorias
-    });
-
-    return true;
-  } catch (error) {
-    console.error("[Favoritos] Erro ao remover favorito:", error);
-    return null;
-  }
-}
-
-async function favoritado(videoId = "") {
-  if (!auth.currentUser || !videoId) return false;
-
-  try {
-    const snap = await getDoc(doc(db, "usuarios", auth.currentUser.uid));
-    if (!snap.exists()) return false;
-
-    const dados = snap.data() || {};
-    const favoritos = Array.isArray(dados.favoritos) ? dados.favoritos : [];
-
-    return favoritos.some((item) => item.id === videoId);
-  } catch (error) {
-    console.error("[Favoritos] Erro ao verificar favorito:", error);
-    return false;
-  }
-}
-
-function carregarDadosFavoritos(uid) {
-  const usuarioRef = doc(db, "usuarios", uid);
-
-  onSnapshot(
-    usuarioRef,
-    (snapshot) => {
-      if (!snapshot.exists()) {
-        atualizarEstadoFavoritos([]);
-        atualizarCategoriasFavoritas([]);
-        return;
-      }
-
-      const dados = snapshot.data() || {};
-      const listaFavoritos = Array.isArray(dados.favoritos) ? dados.favoritos : [];
-      const listaCategorias =
-        Array.isArray(dados.categoriasFavoritas) && dados.categoriasFavoritas.length
-          ? dados.categoriasFavoritas
-          : extrairCategoriasDosFavoritos(listaFavoritos);
-
-      atualizarEstadoFavoritos(listaFavoritos);
-      atualizarCategoriasFavoritas(listaCategorias);
-    },
-    (error) => {
-      console.error("[Favoritos] Erro ao carregar favoritos:", error);
-      atualizarEstadoFavoritos([]);
-      atualizarCategoriasFavoritas([]);
+    if (!usuarioAtual) {
+      return status("Faça login antes de cadastrar o rosto.");
     }
-  );
+
+    if (aceitarTermos && !aceitarTermos.checked) {
+      return status("Marque o aceite dos termos para cadastrar o rosto.");
+    }
+
+    status("Capturando rosto para cadastro...");
+
+    const det = await capturar();
+
+    await garantirDocumentoUsuario(usuarioAtual.uid, usuarioAtual.email || "");
+
+    const token = await usuarioAtual.getIdToken();
+
+    const response = await fetch("/api/face-enroll", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        descriptor: Array.from(det.descriptor)
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data?.ok) {
+      throw new Error(data?.error || "Erro ao cadastrar rosto.");
+    }
+
+    await updateDoc(doc(db, "usuarios", usuarioAtual.uid), {
+      aceitaTermosFace: true,
+      faceLoginEnabled: true,
+      faceRegisteredAt: serverTimestamp(),
+      onboardingStatus: "done",
+      atualizadoEm: serverTimestamp()
+    });
+
+    status("Rosto cadastrado com sucesso.");
+
+    setTimeout(() => {
+      location.href = "index.html";
+    }, 1200);
+  } catch (error) {
+    console.error("[FACE]", error);
+    status(error.message || "Erro no cadastro facial.");
+  }
+}
+
+async function entrarComFace() {
+  try {
+    status("Capturando rosto para login...");
+
+    const det = await capturar();
+
+    const response = await fetch("/api/face-login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        descriptor: Array.from(det.descriptor)
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data?.ok || !data.customToken) {
+      throw new Error(data?.error || "Rosto não reconhecido.");
+    }
+
+    await signInWithCustomToken(auth, data.customToken);
+
+    status("Login facial realizado com sucesso.");
+
+    setTimeout(() => {
+      location.href = "index.html";
+    }, 1000);
+  } catch (error) {
+    console.error("[FACE]", error);
+    status(error.message || "Erro no login facial.");
+  }
 }
 
 onAuthStateChanged(auth, (user) => {
-  if (!user) {
-    atualizarEstadoFavoritos([]);
-    atualizarCategoriasFavoritas([]);
-    return;
-  }
-
-  carregarDadosFavoritos(user.uid);
+  usuarioAtual = user || null;
+  atualizarVisibilidade();
 });
 
-window.BrasflixFavoritos = {
-  adicionarFavorito,
-  removerFavorito,
-  favoritado
-};
-
-export {
-  adicionarFavorito,
-  removerFavorito,
-  favoritado
-};
+btnIniciarCamera?.addEventListener("click", iniciarCamera);
+btnCadastrarFace?.addEventListener("click", cadastrarFace);
+btnEntrarFace?.addEventListener("click", entrarComFace);
+aceitarTermos?.addEventListener("change", atualizarVisibilidade);
+document.addEventListener("DOMContentLoaded", atualizarVisibilidade);
