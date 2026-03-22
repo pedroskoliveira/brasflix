@@ -63,27 +63,21 @@ const AIEngine = {
     if (Array.isArray(contexto.historico) && contexto.historico.length) {
       partes.push(
         "Histórico recente:\n" +
-        contexto.historico
-          .map((item, i) => `${i + 1}. ${item.videoTitulo || item.titulo || "Vídeo"}`)
-          .join("\n")
+          contexto.historico.map((item, i) => `${i + 1}. ${item.videoTitulo || item.titulo || "Vídeo"}`).join("\n")
       );
     }
 
     if (Array.isArray(contexto.favoritos) && contexto.favoritos.length) {
       partes.push(
         "Favoritos:\n" +
-        contexto.favoritos
-          .map((item, i) => `${i + 1}. ${item.titulo || "Vídeo"}`)
-          .join("\n")
+          contexto.favoritos.map((item, i) => `${i + 1}. ${item.titulo || "Vídeo"}`).join("\n")
       );
     }
 
     if (Array.isArray(contexto.comentarios) && contexto.comentarios.length) {
       partes.push(
         "Comentários recentes:\n" +
-        contexto.comentarios
-          .map((item, i) => `${i + 1}. ${item.texto || ""}`)
-          .join("\n")
+          contexto.comentarios.map((item, i) => `${i + 1}. ${item.texto || ""}`).join("\n")
       );
     }
 
@@ -126,17 +120,18 @@ const AIEngine = {
 
       const prov = provider || this.providerPadrao;
 
-      let resposta = prov === "mistral"
-        ? await mistralClient.sendMessage({
-            message: prompt,
-            context,
-            systemInstruction: system
-          })
-        : await geminiClient.sendMessage({
-            message: prompt,
-            context,
-            systemInstruction: system
-          });
+      let resposta =
+        prov === "mistral"
+          ? await mistralClient.sendMessage({
+              message: prompt,
+              context,
+              systemInstruction: system
+            })
+          : await geminiClient.sendMessage({
+              message: prompt,
+              context,
+              systemInstruction: system
+            });
 
       if (!resposta?.ok && prov !== "mistral") {
         resposta = await mistralClient.sendMessage({
@@ -172,5 +167,4 @@ const AIEngine = {
 };
 
 window.AIEngine = AIEngine;
-
 export { AIEngine };
