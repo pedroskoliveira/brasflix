@@ -1,8 +1,3 @@
-/**
- * Módulo de utilidades do chat entre usuários
- * Centraliza validações, formatações e funções reutilizáveis
- */
-
 export const ChatUsuarios = {
   iniciar() {
     console.log("[ChatUsuarios] Módulo inicializado");
@@ -47,7 +42,30 @@ export const ChatUsuarios = {
   },
 
   ordenarParticipantes(uid1, uid2) {
-    return [uid1, uid2].sort().join("_");
+    return [uid1, uid2].filter(Boolean).sort().join("_");
+  },
+
+  gerarRoomId(uid1, uid2) {
+    return this.ordenarParticipantes(uid1, uid2);
+  },
+
+  contatoEhValido(contato = {}) {
+    if (!contato || typeof contato !== "object") return false;
+    const uid = String(contato.uid || contato.id || "").trim();
+    return uid.length > 0;
+  },
+
+  ehConversaPropria(uidAtual, uidOutro) {
+    return !!uidAtual && !!uidOutro && uidAtual === uidOutro;
+  },
+
+  normalizarContato(contato = {}) {
+    return {
+      uid: String(contato.uid || contato.id || "").trim(),
+      nome: String(contato.nome || contato.displayName || "").trim(),
+      email: String(contato.email || "").trim(),
+      fotoURL: String(contato.fotoURL || contato.avatar || contato.photoURL || "").trim()
+    };
   },
 
   salaEhValida(sala) {
