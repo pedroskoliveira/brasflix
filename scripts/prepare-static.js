@@ -7,14 +7,39 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 
 async function ensureDir(dir) {
-  await fs.mkdir(dir, { recursive: true });
+  try {
+    const stat = await fs.stat(dir);
+    if (!stat.isDirectory()) {
+      throw new Error(`Já existe um arquivo com o nome da pasta esperada: ${dir}`);
+    }
+    return;
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      await fs.mkdir(dir, { recursive: true });
+      return;
+    }
+    throw error;
+  }
+}
+
+async function removeIfFile(targetPath) {
+  try {
+    const stat = await fs.stat(targetPath);
+    if (stat.isFile()) {
+      await fs.unlink(targetPath);
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
 }
 
 async function copyRecursive(src, dest) {
   const stat = await fs.stat(src);
 
   if (stat.isDirectory()) {
+    await removeIfFile(dest);
     await ensureDir(dest);
+
     const entries = await fs.readdir(src, { withFileTypes: true });
 
     for (const entry of entries) {
@@ -36,11 +61,14 @@ async function copyRecursive(src, dest) {
 }
 
 async function main() {
+  const sourceModels = path.join(projectRoot, "models");
+  const publicDir = path.join(projectRoot, "public");
+  const targetModels = path.join(publicDir, "models");
+
+  await ensureDir(publicDir);
+
   const assetsToCopy = [
-    {
-      from: path.join(projectRoot, "models"),
-      to: path.join(projectRoot, "public", "models")
-    }
+    { from: sourceModels, to: targetModels }
   ];
 
   for (const asset of assetsToCopy) {
@@ -50,7 +78,10 @@ async function main() {
         `[prepare-static] Copiado: ${path.relative(projectRoot, asset.from)} -> ${path.relative(projectRoot, asset.to)}`
       );
     } catch (error) {
-      console.error(`[prepare-static] Falha ao copiar ${asset.from}:`, error.message);
+      console.error(
+        `[prepare-static] Falha ao copiar ${asset.from}:`,
+        error.message
+      );
       process.exitCode = 1;
     }
   }
