@@ -22,62 +22,124 @@ const aceitarTermos =
   document.getElementById("aceitoTermosFace");
 const termosWrap = document.getElementById("termosFaceWrap");
 
+const FACE_MODE = (new URLSearchParams(window.location.search).get("mode") || "").toLowerCase();
+const MODEL_CANDIDATES = ["/models", "./models", "models"];
+
 let stream = null;
 let modelosCarregados = false;
 let usuarioAtual = null;
+let resolvedModelsPath = "";
 
 function status(texto) {
-  if (statusEl) {
-    statusEl.textContent = texto;
+  if (statusEl) statusEl.textContent = texto;
+}
+
+function aguardarFaceApi(timeoutMs = 10000) {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+
+    function check() {
+      if (window.faceapi) {
+        resolve(window.faceapi);
+        return;
+      }
+
+      if (Date.now() - start >= timeoutMs) {
+        reject(new Error("face-api.js não foi carregada a tempo."));
+        return;
+      }
+
+      requestAnimationFrame(check);
+    }
+
+    check();
+  });
+}
+
+async function manifestExiste(basePath) {
+  const normalizedBase = String(basePath || "").replace(/\/$/, "");
+  const manifestUrl = `${normalizedBase}/tiny_face_detector_model-weights_manifest.json`;
+
+  try {
+    const response = await fetch(manifestUrl, { cache: "no-store" });
+    return response.ok;
+  } catch {
+    return false;
   }
+}
+
+async function descobrirPastaModelos() {
+  if (resolvedModelsPath) return resolvedModelsPath;
+
+  for (const candidate of MODEL_CANDIDATES) {
+    if (await manifestExiste(candidate)) {
+      resolvedModelsPath = candidate.replace(/\/$/, "");
+      return resolvedModelsPath;
+    }
+  }
+
+  throw new Error(
+    "A pasta de modelos faciais não foi encontrada em /models. Publique a pasta em public/models ou use o prebuild para copiá-la."
+  );
 }
 
 function atualizarVisibilidade() {
   const streamAtivo = !!stream;
+  const modoCadastro = FACE_MODE === "enroll";
+  const modoLogin = FACE_MODE === "login";
 
   if (btnEntrarFace) {
-    btnEntrarFace.style.display = streamAtivo ? "inline-flex" : "none";
+    const podeExibir = streamAtivo && (modoLogin || !modoCadastro);
+    btnEntrarFace.style.display = podeExibir ? "inline-flex" : "none";
   }
 
   if (termosWrap) {
-    termosWrap.style.display = usuarioAtual && streamAtivo ? "block" : "none";
+    termosWrap.style.display = usuarioAtual && streamAtivo && !modoLogin ? "block" : "none";
   }
 
   if (btnCadastrarFace) {
-    const pode =
+    const podeCadastrar =
       !!usuarioAtual &&
       streamAtivo &&
+      !modoLogin &&
       (!aceitarTermos || aceitarTermos.checked);
 
-    btnCadastrarFace.style.display = pode ? "inline-flex" : "none";
+    btnCadastrarFace.style.display = podeCadastrar ? "inline-flex" : "none";
   }
 
   if (btnIniciarCamera) {
-    btnIniciarCamera.textContent = streamAtivo
-      ? "Reiniciar câmera"
-      : "Iniciar câmera";
+    btnIniciarCamera.textContent = streamAtivo ? "Reiniciar câmera" : "Iniciar câmera";
   }
 }
 
 async function carregarModelos() {
   if (modelosCarregados) return;
 
-  status("Carregando modelos faciais...");
+  const faceapi = await aguardarFaceApi();
+  const modelsPath = await descobrirPastaModelos();
+
+  status(`Carregando modelos faciais de ${modelsPath}...`);
 
   await Promise.all([
-    faceapi.nets.tinyFaceDetector.loadFromUri("./models"),
-    faceapi.nets.faceLandmark68Net.loadFromUri("./models"),
-    faceapi.nets.faceRecognitionNet.loadFromUri("./models")
+    faceapi.nets.tinyFaceDetector.loadFromUri(modelsPath),
+    faceapi.nets.faceLandmark68Net.loadFromUri(modelsPath),
+    faceapi.nets.faceRecognitionNet.loadFromUri(modelsPath)
   ]);
 
   modelosCarregados = true;
-  status("Modelos faciais carregados.");
+  status("Modelos faciais carregados com sucesso.");
 }
 
 async function iniciarCamera() {
   try {
+    await aguardarFaceApi();
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Seu navegador não suporta acesso à câmera.");
+    }
+
     if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
+      stream.getTracks().forEach((track) => track.stop());
       stream = null;
     }
 
@@ -108,6 +170,12 @@ async function iniciarCamera() {
 }
 
 async function capturar() {
+  const faceapi = await aguardarFaceApi();
+
+  if (!stream) {
+    throw new Error("Inicie a câmera antes de capturar o rosto.");
+  }
+
   if (video.readyState < 2) {
     throw new Error("A câmera ainda não está pronta.");
   }
@@ -264,4 +332,16 @@ btnIniciarCamera?.addEventListener("click", iniciarCamera);
 btnCadastrarFace?.addEventListener("click", cadastrarFace);
 btnEntrarFace?.addEventListener("click", entrarComFace);
 aceitarTermos?.addEventListener("change", atualizarVisibilidade);
-document.addEventListener("DOMContentLoaded", atualizarVisibilidade);
+
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    await aguardarFaceApi();
+    await descobrirPastaModelos();
+    status(`Sistema facial pronto. Pasta detectada: ${resolvedModelsPath}`);
+  } catch (error) {
+    console.error("[FACE]", error);
+    status(error.message || "Falha ao preparar login facial.");
+  }
+
+  atualizarVisibilidade();
+});
