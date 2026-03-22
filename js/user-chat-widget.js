@@ -2,7 +2,20 @@ import { auth, db } from "./firebase-config.js";
 import { criarInterfaceChatUsuario } from "./user-chat-ui.js";
 import ChatUsuarios from "./user-chat.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { collection, addDoc, doc, getDoc, getDocs, query, where, orderBy, limit, serverTimestamp, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  collection,
+  addDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  serverTimestamp,
+  onSnapshot,
+  updateDoc,
+  setDoc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 function criarFallbackSeNecessario() {
   if (document.getElementById("user-chat-widget")) return;
@@ -46,18 +59,56 @@ const estado = {
   contatos: [],
   contatosFiltrados: [],
   conversaAtual: null,
+  conversasMap: new Map(),
   cancelarMensagens: null,
   cancelarConversas: null
 };
 
+function reordenarContatosPorConversas() {
+  estado.contatos.sort((a, b) => {
+    const convA = estado.conversasMap.get(a.uid);
+    const convB = estado.conversasMap.get(b.uid);
+
+    const tempoA = convA?.ultimaMensagemEm?.toMillis?.() || convA?.ultimaMensagemEm?.seconds || 0;
+    const tempoB = convB?.ultimaMensagemEm?.toMillis?.() || convB?.ultimaMensagemEm?.seconds || 0;
+
+    if (tempoA !== tempoB) return tempoB - tempoA;
+
+    return ChatUsuarios.obterNomeExibicao(a).localeCompare(
+      ChatUsuarios.obterNomeExibicao(b),
+      "pt-BR"
+    );
+  });
+}
+
+function enriquecerContatosComConversa(lista = []) {
+  return lista.map((contato) => {
+    const conversa = estado.conversasMap.get(contato.uid);
+    return {
+      ...contato,
+      preview: conversa?.ultimaMensagem || contato.email || "Sem mensagens ainda",
+      previewTempo: conversa?.ultimaMensagemEm ? ChatUsuarios.formatarTempo(conversa.ultimaMensagemEm) : ""
+    };
+  });
+}
+
 function filtrarContatos(texto = "") {
   const termo = (texto || "").trim().toLowerCase();
-  estado.contatosFiltrados = !termo ? [...estado.contatos] : estado.contatos.filter((contato) => {
-    const nome = (contato.nome || "").toLowerCase();
-    const email = (contato.email || "").toLowerCase();
-    return nome.includes(termo) || email.includes(termo);
-  });
-  ui.renderizarContatos(estado.contatosFiltrados, estado.conversaAtual?.outroUid || "", selecionarContato);
+
+  const base = !termo
+    ? [...estado.contatos]
+    : estado.contatos.filter((contato) => {
+        const nome = (contato.nome || "").toLowerCase();
+        const email = (contato.email || "").toLowerCase();
+        return nome.includes(termo) || email.includes(termo);
+      });
+
+  estado.contatosFiltrados = enriquecerContatosComConversa(base);
+  ui.renderizarContatos(
+    estado.contatosFiltrados,
+    estado.conversaAtual?.outroUid || "",
+    selecionarContato
+  );
 }
 
 async function carregarMeuPerfil(uid) {
@@ -73,22 +124,28 @@ async function carregarMeuPerfil(uid) {
 
 async function carregarContatos() {
   if (!estado.usuarioAtual) return;
+
   ui.definirStatus("Carregando contatos...");
+
   try {
     const snapshot = await getDocs(collection(db, "usuarios"));
     estado.contatos = [];
+
     snapshot.forEach((documento) => {
-      if (documento.id === estado.usuarioAtual.uid) return;
       const dados = documento.data() || {};
-      estado.contatos.push({
+      const contato = ChatUsuarios.normalizarContato({
         uid: dados.usuarioId || dados.uid || documento.id,
         nome: dados.nome || "",
         email: dados.email || "",
         fotoURL: dados.fotoURL || dados.avatar || ""
       });
+
+      if (!contato.uid || contato.uid === estado.usuarioAtual.uid) return;
+      estado.contatos.push(contato);
     });
-    estado.contatos.sort((a, b) => ChatUsuarios.obterNomeExibicao(a).localeCompare(ChatUsuarios.obterNomeExibicao(b), "pt-BR"));
-    filtrarContatos("");
+
+    reordenarContatosPorConversas();
+    filtrarContatos(ui.obterTextoBusca());
     ui.definirStatus("Selecione um contato para iniciar.");
   } catch (erro) {
     console.error("[Chat] Erro ao carregar contatos:", erro);
@@ -97,12 +154,13 @@ async function carregarContatos() {
 }
 
 async function buscarSalaExistente(uidAtual, uidOutro) {
-  const participantesOrdenados = ChatUsuarios.ordenarParticipantes(uidAtual, uidOutro);
-  const consulta = query(collection(db, "chatRooms"), where("participantesOrdenados", "==", participantesOrdenados), limit(1));
-  const snapshot = await getDocs(consulta);
-  if (snapshot.empty) return null;
-  const primeiro = snapshot.docs[0];
-  const sala = { id: primeiro.id, ...primeiro.data() };
+  const roomId = ChatUsuarios.gerarRoomId(uidAtual, uidOutro);
+  const salaRef = doc(db, "chatRooms", roomId);
+  const snapshot = await getDoc(salaRef);
+
+  if (!snapshot.exists()) return null;
+
+  const sala = { id: snapshot.id, ...snapshot.data() };
   return ChatUsuarios.salaEhValida(sala) ? sala : null;
 }
 
@@ -110,49 +168,97 @@ async function criarSala(contato) {
   const uidAtual = estado.usuarioAtual.uid;
   const uidOutro = contato.uid;
   const participantesOrdenados = ChatUsuarios.ordenarParticipantes(uidAtual, uidOutro);
-  const meuNome = ChatUsuarios.obterNomeExibicao({ nome: estado.perfilAtual?.nome, displayName: estado.usuarioAtual?.displayName, email: estado.usuarioAtual?.email, uid: estado.usuarioAtual?.uid });
+  const roomId = ChatUsuarios.gerarRoomId(uidAtual, uidOutro);
+
+  const meuNome = ChatUsuarios.obterNomeExibicao({
+    nome: estado.perfilAtual?.nome,
+    displayName: estado.usuarioAtual?.displayName,
+    email: estado.usuarioAtual?.email,
+    uid: estado.usuarioAtual?.uid
+  });
+
   const meuEmail = estado.perfilAtual?.email || estado.usuarioAtual.email || "";
   const minhaFoto = estado.perfilAtual?.fotoURL || estado.perfilAtual?.avatar || estado.usuarioAtual.photoURL || "";
-  const salaRef = await addDoc(collection(db, "chatRooms"), {
-    participantes: [uidAtual, uidOutro],
-    participantesOrdenados,
-    participantesInfo: {
-      [uidAtual]: { nome: meuNome, email: meuEmail, fotoURL: minhaFoto },
-      [uidOutro]: { nome: contato.nome || "", email: contato.email || "", fotoURL: contato.fotoURL || "" }
+
+  const salaRef = doc(db, "chatRooms", roomId);
+
+  await setDoc(
+    salaRef,
+    {
+      participantes: [uidAtual, uidOutro],
+      participantesOrdenados,
+      participantesInfo: {
+        [uidAtual]: { nome: meuNome, email: meuEmail, fotoURL: minhaFoto },
+        [uidOutro]: { nome: contato.nome || "", email: contato.email || "", fotoURL: contato.fotoURL || "" }
+      },
+      ultimaMensagem: "",
+      ultimaMensagemEm: serverTimestamp(),
+      ultimaMensagemPor: "",
+      criadoEm: serverTimestamp()
     },
-    ultimaMensagem: "",
-    ultimaMensagemEm: serverTimestamp(),
-    ultimaMensagemPor: uidAtual,
-    criadoEm: serverTimestamp()
-  });
+    { merge: true }
+  );
+
   const salaDoc = await getDoc(salaRef);
   return { id: salaDoc.id, ...salaDoc.data() };
 }
 
 function ouvirMensagensDaConversa(roomId) {
   estado.cancelarMensagens?.();
-  const consulta = query(collection(db, "chatRooms", roomId, "mensagens"), orderBy("criadoEm", "asc"));
-  estado.cancelarMensagens = onSnapshot(consulta, (snapshot) => {
-    const mensagens = snapshot.docs.map((documento) => ({ id: documento.id, ...documento.data() }));
-    ui.renderizarMensagens(mensagens, estado.usuarioAtual?.uid || "");
-  }, (erro) => {
-    console.error("[Chat] Erro em tempo real das mensagens:", erro);
-    ui.definirStatus("Erro ao atualizar mensagens em tempo real.");
-  });
+
+  const consulta = query(
+    collection(db, "chatRooms", roomId, "mensagens"),
+    orderBy("criadoEm", "asc")
+  );
+
+  estado.cancelarMensagens = onSnapshot(
+    consulta,
+    (snapshot) => {
+      const mensagens = snapshot.docs.map((documento) => ({
+        id: documento.id,
+        ...documento.data()
+      }));
+      ui.renderizarMensagens(mensagens, estado.usuarioAtual?.uid || "");
+    },
+    (erro) => {
+      console.error("[Chat] Erro em tempo real das mensagens:", erro);
+      ui.definirStatus("Erro ao atualizar mensagens em tempo real.");
+    }
+  );
 }
 
-async function abrirOuCriarConversa(contato) {
+async function abrirOuCriarConversa(contatoRecebido) {
   if (!estado.usuarioAtual) {
     ui.definirStatus("Faça login para usar o chat.");
     return;
   }
+
+  const contato = ChatUsuarios.normalizarContato(contatoRecebido);
+
+  if (!ChatUsuarios.contatoEhValido(contato)) {
+    ui.definirStatus("Contato inválido.");
+    return;
+  }
+
+  if (ChatUsuarios.ehConversaPropria(estado.usuarioAtual.uid, contato.uid)) {
+    ui.definirStatus("Você não pode abrir conversa com o próprio usuário.");
+    return;
+  }
+
   ui.definirStatus("Abrindo conversa...");
   ui.limparMensagens();
   ui.definirFormularioHabilitado(false);
+
   try {
     let sala = await buscarSalaExistente(estado.usuarioAtual.uid, contato.uid);
     if (!sala) sala = await criarSala(contato);
-    estado.conversaAtual = { roomId: sala.id, outroUid: contato.uid, outroNome: contato.nome || contato.email || "Contato" };
+
+    estado.conversaAtual = {
+      roomId: sala.id,
+      outroUid: contato.uid,
+      outroNome: contato.nome || contato.email || "Contato"
+    };
+
     ui.definirCabecalhoConversa(`Conversando com ${contato.nome || contato.email || "Contato"}`);
     ui.definirStatus("Conversa aberta.");
     ui.definirFormularioHabilitado(true);
@@ -167,16 +273,34 @@ async function abrirOuCriarConversa(contato) {
 
 async function selecionarContato(uidContato) {
   const contato = estado.contatos.find((item) => item.uid === uidContato);
-  if (contato) await abrirOuCriarConversa(contato);
+  if (contato) {
+    await abrirOuCriarConversa(contato);
+  }
 }
 
 async function enviarMensagem(texto) {
-  if (!estado.usuarioAtual) return ui.definirStatus("Faça login para enviar mensagens.");
-  if (!estado.conversaAtual?.roomId) return ui.definirStatus("Selecione um contato primeiro.");
-  if (!ChatUsuarios.validarMensagem(texto)) return ui.definirStatus("Digite uma mensagem válida.");
+  if (!estado.usuarioAtual) {
+    return ui.definirStatus("Faça login para enviar mensagens.");
+  }
+
+  if (!estado.conversaAtual?.roomId) {
+    return ui.definirStatus("Selecione um contato primeiro.");
+  }
+
+  if (!ChatUsuarios.validarMensagem(texto)) {
+    return ui.definirStatus("Digite uma mensagem válida.");
+  }
+
   const mensagem = ChatUsuarios.sanitizarMensagem(texto);
+
   try {
-    const meuNome = ChatUsuarios.obterNomeExibicao({ nome: estado.perfilAtual?.nome, displayName: estado.usuarioAtual?.displayName, email: estado.usuarioAtual?.email, uid: estado.usuarioAtual?.uid });
+    const meuNome = ChatUsuarios.obterNomeExibicao({
+      nome: estado.perfilAtual?.nome,
+      displayName: estado.usuarioAtual?.displayName,
+      email: estado.usuarioAtual?.email,
+      uid: estado.usuarioAtual?.uid
+    });
+
     await addDoc(collection(db, "chatRooms", estado.conversaAtual.roomId, "mensagens"), {
       texto: mensagem,
       autorId: estado.usuarioAtual.uid,
@@ -184,11 +308,13 @@ async function enviarMensagem(texto) {
       criadoEm: serverTimestamp(),
       lida: false
     });
+
     await updateDoc(doc(db, "chatRooms", estado.conversaAtual.roomId), {
       ultimaMensagem: ChatUsuarios.limitarTexto(mensagem, 300),
       ultimaMensagemEm: serverTimestamp(),
       ultimaMensagemPor: estado.usuarioAtual.uid
     });
+
     ui.limparCampoMensagem();
     ui.definirStatus("Mensagem enviada.");
   } catch (erro) {
@@ -199,18 +325,60 @@ async function enviarMensagem(texto) {
 
 function ouvirMinhasConversas() {
   if (!estado.usuarioAtual) return;
+
   estado.cancelarConversas?.();
-  const consulta = query(collection(db, "chatRooms"), where("participantes", "array-contains", estado.usuarioAtual.uid), orderBy("ultimaMensagemEm", "desc"));
-  estado.cancelarConversas = onSnapshot(consulta, (snapshot) => {
-    const totalComMensagem = snapshot.docs.filter((documento) => documento.data()?.ultimaMensagem).length;
-    if (totalComMensagem > 0) ui.mostrarToast(`Você tem ${totalComMensagem} conversa(s) ativa(s).`);
-  }, (erro) => console.error("[Chat] Erro ao ouvir conversas:", erro));
+
+  const consulta = query(
+    collection(db, "chatRooms"),
+    where("participantes", "array-contains", estado.usuarioAtual.uid),
+    orderBy("ultimaMensagemEm", "desc")
+  );
+
+  estado.cancelarConversas = onSnapshot(
+    consulta,
+    (snapshot) => {
+      estado.conversasMap.clear();
+
+      snapshot.docs.forEach((documento) => {
+        const dados = documento.data() || {};
+        const outroUid = (dados.participantes || []).find((uid) => uid !== estado.usuarioAtual.uid);
+        if (!outroUid) return;
+
+        estado.conversasMap.set(outroUid, {
+          roomId: documento.id,
+          ultimaMensagem: dados.ultimaMensagem || "",
+          ultimaMensagemEm: dados.ultimaMensagemEm || null,
+          ultimaMensagemPor: dados.ultimaMensagemPor || ""
+        });
+      });
+
+      reordenarContatosPorConversas();
+      filtrarContatos(ui.obterTextoBusca());
+
+      const totalComMensagem = snapshot.docs.filter((documento) => documento.data()?.ultimaMensagem).length;
+      if (totalComMensagem > 0) {
+        ui.mostrarToast(`Você tem ${totalComMensagem} conversa(s) ativa(s).`);
+      }
+    },
+    (erro) => {
+      console.error("[Chat] Erro ao ouvir conversas:", erro);
+    }
+  );
 }
 
 function limparEstadoQuandoSai() {
-  estado.perfilAtual = null; estado.conversaAtual = null; estado.contatos = []; estado.contatosFiltrados = [];
-  estado.cancelarMensagens?.(); estado.cancelarMensagens = null;
-  estado.cancelarConversas?.(); estado.cancelarConversas = null;
+  estado.perfilAtual = null;
+  estado.conversaAtual = null;
+  estado.contatos = [];
+  estado.contatosFiltrados = [];
+  estado.conversasMap.clear();
+
+  estado.cancelarMensagens?.();
+  estado.cancelarMensagens = null;
+
+  estado.cancelarConversas?.();
+  estado.cancelarConversas = null;
+
   ui.renderizarContatos([], "", null);
   ui.definirCabecalhoConversa("Selecione um contato");
   ui.limparMensagens();
@@ -228,10 +396,16 @@ function iniciarEventos() {
 function iniciarAutenticacao() {
   onAuthStateChanged(auth, async (usuario) => {
     estado.usuarioAtual = usuario || null;
-    if (!usuario) return limparEstadoQuandoSai();
+
+    if (!usuario) {
+      limparEstadoQuandoSai();
+      return;
+    }
+
     await carregarMeuPerfil(usuario.uid);
     await carregarContatos();
     ouvirMinhasConversas();
+
     ui.definirCabecalhoConversa("Selecione um contato");
     ui.definirFormularioHabilitado(false);
     ui.definirStatus("Selecione um contato para iniciar.");
@@ -253,6 +427,10 @@ window.BrasflixUserChat = {
     if (!contato) return;
     abrirOuCriarConversa(contato);
   },
-  openPanel() { ui.abrirPainel(); },
-  closePanel() { ui.fecharPainel(); }
+  openPanel() {
+    ui.abrirPainel();
+  },
+  closePanel() {
+    ui.fecharPainel();
+  }
 };
