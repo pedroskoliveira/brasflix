@@ -44,9 +44,7 @@ export function criarInterfaceChatUsuario() {
     item.textContent = texto;
     elementos.toasts.appendChild(item);
 
-    setTimeout(() => {
-      item.remove();
-    }, 3000);
+    setTimeout(() => item.remove(), 3000);
   }
 
   function abrirPainel() {
@@ -85,19 +83,12 @@ export function criarInterfaceChatUsuario() {
     elementos.contatos.innerHTML = lista.map((contato) => {
       const ativo = uidConversaAtiva === contato.uid;
       const inicial = (contato.nome || contato.email || "U").charAt(0).toUpperCase();
-      const subtitulo = contato.preview || contato.email || "Sem email";
+      const subtitulo = contato.preview || contato.email || "Sem mensagens ainda";
       const horario = contato.previewTempo || "";
 
       return `
-        <button
-          type="button"
-          class="user-chat-contact-item ${ativo ? "ativo" : ""}"
-          data-uid="${escaparHtml(contato.uid)}"
-        >
-          <div class="user-chat-contact-avatar">
-            ${escaparHtml(inicial)}
-          </div>
-
+        <button type="button" class="user-chat-contact-item ${ativo ? "ativo" : ""}" data-uid="${escaparHtml(contato.uid)}">
+          <div class="user-chat-contact-avatar">${escaparHtml(inicial)}</div>
           <div class="user-chat-contact-info">
             <div class="user-chat-contact-top">
               <div class="user-chat-contact-name">${escaparHtml(contato.nome || "Sem nome")}</div>
@@ -133,9 +124,8 @@ export function criarInterfaceChatUsuario() {
     elementos.mensagens.innerHTML = lista.map((mensagem) => {
       const minha = mensagem.autorId === uidAtual;
       const horario = mensagem.criadoEm
-        ? new Date(
-            mensagem.criadoEm.toDate ? mensagem.criadoEm.toDate() : mensagem.criadoEm
-          ).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+        ? new Date(mensagem.criadoEm.toDate ? mensagem.criadoEm.toDate() : mensagem.criadoEm)
+            .toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
         : "";
 
       return `
@@ -178,9 +168,7 @@ export function criarInterfaceChatUsuario() {
 
   function aoBuscar(callback) {
     if (!elementos.busca || typeof callback !== "function") return;
-    elementos.busca.addEventListener("input", () => {
-      callback(obterTextoBusca());
-    });
+    elementos.busca.addEventListener("input", () => callback(obterTextoBusca()));
   }
 
   function aoAbrir(callback) {
@@ -209,7 +197,6 @@ export function criarInterfaceChatUsuario() {
 
   return {
     elementos,
-    escaparHtml,
     definirStatus,
     definirCabecalhoConversa,
     limparMensagens,
