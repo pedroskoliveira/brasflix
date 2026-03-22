@@ -34,14 +34,12 @@ export default async function handler(req, res) {
     if (normalized.length) {
       parts.push(
         "Contexto adicional:\n" +
-        normalized.map((item) => `- ${item.role}: ${item.content}`).join("\n")
+          normalized.map((item) => `- ${item.role}: ${item.content}`).join("\n")
       );
     }
 
     parts.push(`Pergunta do usuário:\n${prompt}`);
-    parts.push(
-      "Responda de forma objetiva. Não invente informações. Se não souber, diga claramente."
-    );
+    parts.push("Responda de forma objetiva. Não invente informações. Se não souber, diga claramente.");
 
     return parts.join("\n\n");
   }
@@ -88,10 +86,8 @@ export default async function handler(req, res) {
       throw new Error(data?.error?.message || data?.message || "Falha ao chamar o Gemini.");
     }
 
-    const text = data?.candidates?.[0]?.content?.parts
-      ?.map((p) => p?.text || "")
-      .join("\n")
-      .trim() || "";
+    const text =
+      data?.candidates?.[0]?.content?.parts?.map((p) => p?.text || "").join("\n").trim() || "";
 
     if (!text) {
       throw new Error("Gemini retornou resposta vazia.");
