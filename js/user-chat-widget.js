@@ -73,11 +73,7 @@ function reordenarContatosPorConversas() {
     const tempoB = convB?.ultimaMensagemEm?.toMillis?.() || convB?.ultimaMensagemEm?.seconds || 0;
 
     if (tempoA !== tempoB) return tempoB - tempoA;
-
-    return ChatUsuarios.obterNomeExibicao(a).localeCompare(
-      ChatUsuarios.obterNomeExibicao(b),
-      "pt-BR"
-    );
+    return ChatUsuarios.obterNomeExibicao(a).localeCompare(ChatUsuarios.obterNomeExibicao(b), "pt-BR");
   });
 }
 
@@ -104,11 +100,7 @@ function filtrarContatos(texto = "") {
       });
 
   estado.contatosFiltrados = enriquecerContatosComConversa(base);
-  ui.renderizarContatos(
-    estado.contatosFiltrados,
-    estado.conversaAtual?.outroUid || "",
-    selecionarContato
-  );
+  ui.renderizarContatos(estado.contatosFiltrados, estado.conversaAtual?.outroUid || "", selecionarContato);
 }
 
 async function carregarMeuPerfil(uid) {
@@ -206,10 +198,7 @@ async function criarSala(contato) {
 function ouvirMensagensDaConversa(roomId) {
   estado.cancelarMensagens?.();
 
-  const consulta = query(
-    collection(db, "chatRooms", roomId, "mensagens"),
-    orderBy("criadoEm", "asc")
-  );
+  const consulta = query(collection(db, "chatRooms", roomId, "mensagens"), orderBy("criadoEm", "asc"));
 
   estado.cancelarMensagens = onSnapshot(
     consulta,
@@ -267,7 +256,7 @@ async function abrirOuCriarConversa(contatoRecebido) {
     ui.abrirPainel();
   } catch (erro) {
     console.error("[Chat] Erro ao abrir conversa:", erro);
-    ui.definirStatus("Erro ao abrir conversa.");
+    ui.definirStatus(`Erro ao abrir conversa. ${erro?.message || ""}`.trim());
   }
 }
 
@@ -279,17 +268,9 @@ async function selecionarContato(uidContato) {
 }
 
 async function enviarMensagem(texto) {
-  if (!estado.usuarioAtual) {
-    return ui.definirStatus("Faça login para enviar mensagens.");
-  }
-
-  if (!estado.conversaAtual?.roomId) {
-    return ui.definirStatus("Selecione um contato primeiro.");
-  }
-
-  if (!ChatUsuarios.validarMensagem(texto)) {
-    return ui.definirStatus("Digite uma mensagem válida.");
-  }
+  if (!estado.usuarioAtual) return ui.definirStatus("Faça login para enviar mensagens.");
+  if (!estado.conversaAtual?.roomId) return ui.definirStatus("Selecione um contato primeiro.");
+  if (!ChatUsuarios.validarMensagem(texto)) return ui.definirStatus("Digite uma mensagem válida.");
 
   const mensagem = ChatUsuarios.sanitizarMensagem(texto);
 
