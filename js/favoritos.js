@@ -1,145 +1,31 @@
 import { auth, db } from "./firebase-config.js";
 import {
-  onAuthStateChanged,
-  signInWithCustomToken
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {
   doc,
   getDoc,
   setDoc,
   updateDoc,
+  arrayUnion,
+  arrayRemove,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-const video = document.getElementById("videoFace");
-const canvas = document.getElementById("canvasFace");
-const statusEl = document.getElementById("statusFace");
-const btnIniciarCamera = document.getElementById("btnIniciarCamera");
-const btnCadastrarFace = document.getElementById("btnCadastrarFace");
-const btnEntrarFace = document.getElementById("btnEntrarFace");
-const aceitarTermos =
-  document.getElementById("aceitarTermosFace") ||
-  document.getElementById("aceitoTermosFace");
-const termosWrap = document.getElementById("termosFaceWrap");
-
-let stream = null;
-let modelosCarregados = false;
-let usuarioAtual = null;
-
-function status(texto) {
-  if (statusEl) {
-    statusEl.textContent = texto;
-  }
+function getUsuarioAtual() {
+  return auth.currentUser || null;
 }
 
-function atualizarVisibilidade() {
-  const streamAtivo = !!stream;
-
-  if (btnEntrarFace) {
-    btnEntrarFace.style.display = streamAtivo ? "inline-flex" : "none";
-  }
-
-  if (termosWrap) {
-    termosWrap.style.display = usuarioAtual && streamAtivo ? "block" : "none";
-  }
-
-  if (btnCadastrarFace) {
-    const pode =
-      !!usuarioAtual &&
-      streamAtivo &&
-      (!aceitarTermos || aceitarTermos.checked);
-
-    btnCadastrarFace.style.display = pode ? "inline-flex" : "none";
-  }
-
-  if (btnIniciarCamera) {
-    btnIniciarCamera.textContent = streamAtivo
-      ? "Reiniciar câmera"
-      : "Iniciar câmera";
-  }
-}
-
-async function carregarModelos() {
-  if (modelosCarregados) return;
-
-  status("Carregando modelos faciais...");
-
-  await Promise.all([
-    faceapi.nets.tinyFaceDetector.loadFromUri("./models"),
-    faceapi.nets.faceLandmark68Net.loadFromUri("./models"),
-    faceapi.nets.faceRecognitionNet.loadFromUri("./models")
-  ]);
-
-  modelosCarregados = true;
-  status("Modelos faciais carregados.");
-}
-
-async function iniciarCamera() {
-  try {
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
-      stream = null;
-    }
-
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: "user",
-        width: { ideal: 640 },
-        height: { ideal: 480 }
-      },
-      audio: false
-    });
-
-    video.srcObject = stream;
-
-    await new Promise((resolve) => {
-      video.onloadedmetadata = resolve;
-    });
-
-    await video.play();
-
-    status("Câmera iniciada com sucesso.");
-    atualizarVisibilidade();
-  } catch (error) {
-    console.error("[FACE]", error);
-    status(error.message || "Erro ao iniciar câmera.");
-    atualizarVisibilidade();
-  }
-}
-
-async function capturar() {
-  if (video.readyState < 2) {
-    throw new Error("A câmera ainda não está pronta.");
-  }
-
-  await carregarModelos();
-
-  const detection = await faceapi
-    .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-    .withFaceLandmarks()
-    .withFaceDescriptor();
-
-  if (!detection) {
-    throw new Error("Nenhum rosto detectado. Ajuste a câmera e tente novamente.");
-  }
-
-  if (canvas) {
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const resized = faceapi.resizeResults(detection, {
-      width: canvas.width,
-      height: canvas.height
-    });
-
-    faceapi.draw.drawDetections(canvas, resized);
-    faceapi.draw.drawFaceLandmarks(canvas, resized);
-  }
-
-  return detection;
+function normalizarFavorito(video = {}) {
+  return {
+    id: String(video.id || "").trim(),
+    docId: String(video.docId || video.id || "").trim(),
+    titulo: String(video.titulo || "Sem título").trim(),
+    descricao: String(video.descricao || "").trim(),
+    categoria: String(video.categoria || "").trim(),
+    thumbnail: String(video.thumbnail || video.capa || "").trim(),
+    videoUrl: String(video.videoUrl || "").trim(),
+    previewUrl: String(video.previewUrl || "").trim(),
+    duracao: Number(video.duracao || video.duracaoSegundos || 0),
+    adicionadoEm: new Date().toISOString()
+  };
 }
 
 async function garantirDocumentoUsuario(uid, email = "") {
@@ -154,114 +40,83 @@ async function garantirDocumentoUsuario(uid, email = "") {
         uid,
         email,
         role: "user",
+        favoritos: [],
         criadoEm: serverTimestamp(),
         atualizadoEm: serverTimestamp()
       },
       { merge: true }
     );
-  } else {
-    await updateDoc(ref, {
-      atualizadoEm: serverTimestamp()
-    });
   }
+
+  return ref;
 }
 
-async function cadastrarFace() {
-  try {
-    if (!usuarioAtual) {
-      return status("Faça login antes de cadastrar o rosto.");
-    }
+export async function listarFavoritos() {
+  const user = getUsuarioAtual();
+  if (!user) return [];
 
-    if (aceitarTermos && !aceitarTermos.checked) {
-      return status("Marque o aceite dos termos para cadastrar o rosto.");
-    }
+  const ref = doc(db, "usuarios", user.uid);
+  const snap = await getDoc(ref);
 
-    status("Capturando rosto para cadastro...");
+  if (!snap.exists()) return [];
 
-    const det = await capturar();
-
-    await garantirDocumentoUsuario(usuarioAtual.uid, usuarioAtual.email || "");
-
-    const token = await usuarioAtual.getIdToken();
-
-    const response = await fetch("/api/face-enroll", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        descriptor: Array.from(det.descriptor)
-      })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || !data?.ok) {
-      throw new Error(data?.error || "Erro ao cadastrar rosto.");
-    }
-
-    await updateDoc(doc(db, "usuarios", usuarioAtual.uid), {
-      aceitaTermosFace: true,
-      faceLoginEnabled: true,
-      faceRegisteredAt: serverTimestamp(),
-      onboardingStatus: "done",
-      atualizadoEm: serverTimestamp()
-    });
-
-    status("Rosto cadastrado com sucesso.");
-
-    setTimeout(() => {
-      location.href = "index.html";
-    }, 1200);
-  } catch (error) {
-    console.error("[FACE]", error);
-    status(error.message || "Erro no cadastro facial.");
-  }
+  const dados = snap.data() || {};
+  return Array.isArray(dados.favoritos) ? dados.favoritos : [];
 }
 
-async function entrarComFace() {
-  try {
-    status("Capturando rosto para login...");
+export async function favoritado(videoId) {
+  const user = getUsuarioAtual();
+  if (!user || !videoId) return false;
 
-    const det = await capturar();
-
-    const response = await fetch("/api/face-login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        descriptor: Array.from(det.descriptor)
-      })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || !data?.ok || !data.customToken) {
-      throw new Error(data?.error || "Rosto não reconhecido.");
-    }
-
-    await signInWithCustomToken(auth, data.customToken);
-
-    status("Login facial realizado com sucesso.");
-
-    setTimeout(() => {
-      location.href = "index.html";
-    }, 1000);
-  } catch (error) {
-    console.error("[FACE]", error);
-    status(error.message || "Erro no login facial.");
-  }
+  const favoritos = await listarFavoritos();
+  return favoritos.some((item) => String(item.id) === String(videoId));
 }
 
-onAuthStateChanged(auth, (user) => {
-  usuarioAtual = user || null;
-  atualizarVisibilidade();
-});
+export async function adicionarFavorito(video) {
+  const user = getUsuarioAtual();
 
-btnIniciarCamera?.addEventListener("click", iniciarCamera);
-btnCadastrarFace?.addEventListener("click", cadastrarFace);
-btnEntrarFace?.addEventListener("click", entrarComFace);
-aceitarTermos?.addEventListener("change", atualizarVisibilidade);
-document.addEventListener("DOMContentLoaded", atualizarVisibilidade);
+  if (!user) {
+    throw new Error("Faça login para adicionar favoritos.");
+  }
+
+  const favorito = normalizarFavorito(video);
+
+  if (!favorito.id) {
+    throw new Error("Vídeo inválido para favoritar.");
+  }
+
+  const ref = await garantirDocumentoUsuario(user.uid, user.email || "");
+
+  const jaExiste = await favoritado(favorito.id);
+  if (jaExiste) return false;
+
+  await updateDoc(ref, {
+    favoritos: arrayUnion(favorito),
+    atualizadoEm: serverTimestamp()
+  });
+
+  return true;
+}
+
+export async function removerFavorito(videoId) {
+  const user = getUsuarioAtual();
+
+  if (!user) {
+    throw new Error("Faça login para remover favoritos.");
+  }
+
+  if (!videoId) return false;
+
+  const ref = await garantirDocumentoUsuario(user.uid, user.email || "");
+  const favoritos = await listarFavoritos();
+  const alvo = favoritos.find((item) => String(item.id) === String(videoId));
+
+  if (!alvo) return false;
+
+  await updateDoc(ref, {
+    favoritos: arrayRemove(alvo),
+    atualizadoEm: serverTimestamp()
+  });
+
+  return true;
+}
