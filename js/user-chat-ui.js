@@ -1,5 +1,6 @@
 export function criarInterfaceChatUsuario() {
   const elementos = {
+    body: document.body,
     widget: document.getElementById("user-chat-widget"),
     botaoAbrir: document.getElementById("user-chat-toggle"),
     painel: document.getElementById("user-chat-panel"),
@@ -24,21 +25,15 @@ export function criarInterfaceChatUsuario() {
   }
 
   function definirStatus(texto) {
-    if (elementos.status) {
-      elementos.status.textContent = texto;
-    }
+    if (elementos.status) elementos.status.textContent = texto;
   }
 
   function definirCabecalhoConversa(texto) {
-    if (elementos.cabecalhoConversa) {
-      elementos.cabecalhoConversa.textContent = texto;
-    }
+    if (elementos.cabecalhoConversa) elementos.cabecalhoConversa.textContent = texto;
   }
 
   function limparMensagens() {
-    if (elementos.mensagens) {
-      elementos.mensagens.innerHTML = "";
-    }
+    if (elementos.mensagens) elementos.mensagens.innerHTML = "";
   }
 
   function mostrarToast(texto) {
@@ -56,29 +51,23 @@ export function criarInterfaceChatUsuario() {
 
   function abrirPainel() {
     if (!elementos.widget || !elementos.painel) return;
-
     elementos.widget.classList.add("open");
     elementos.painel.setAttribute("aria-hidden", "false");
-    document.body.style.marginRight = "360px";
+    elementos.body?.classList.add("user-chat-open");
   }
 
   function fecharPainel() {
     if (!elementos.widget || !elementos.painel) return;
-
     elementos.widget.classList.remove("open");
     elementos.painel.setAttribute("aria-hidden", "true");
-    document.body.style.marginRight = "0";
+    elementos.body?.classList.remove("user-chat-open");
   }
 
   function alternarPainel() {
     if (!elementos.widget) return;
-
     const aberto = elementos.widget.classList.contains("open");
-    if (aberto) {
-      fecharPainel();
-    } else {
-      abrirPainel();
-    }
+    if (aberto) fecharPainel();
+    else abrirPainel();
   }
 
   function renderizarContatos(lista = [], uidConversaAtiva = "", aoSelecionarContato = null) {
@@ -95,6 +84,9 @@ export function criarInterfaceChatUsuario() {
 
     elementos.contatos.innerHTML = lista.map((contato) => {
       const ativo = uidConversaAtiva === contato.uid;
+      const inicial = (contato.nome || contato.email || "U").charAt(0).toUpperCase();
+      const subtitulo = contato.preview || contato.email || "Sem email";
+      const horario = contato.previewTempo || "";
 
       return `
         <button
@@ -103,12 +95,15 @@ export function criarInterfaceChatUsuario() {
           data-uid="${escaparHtml(contato.uid)}"
         >
           <div class="user-chat-contact-avatar">
-            ${escaparHtml((contato.nome || contato.email || "U").charAt(0).toUpperCase())}
+            ${escaparHtml(inicial)}
           </div>
 
           <div class="user-chat-contact-info">
-            <div class="user-chat-contact-name">${escaparHtml(contato.nome || "Sem nome")}</div>
-            <div class="user-chat-contact-email">${escaparHtml(contato.email || "Sem email")}</div>
+            <div class="user-chat-contact-top">
+              <div class="user-chat-contact-name">${escaparHtml(contato.nome || "Sem nome")}</div>
+              <div class="user-chat-contact-time">${escaparHtml(horario)}</div>
+            </div>
+            <div class="user-chat-contact-email">${escaparHtml(subtitulo)}</div>
           </div>
         </button>
       `;
@@ -137,12 +132,18 @@ export function criarInterfaceChatUsuario() {
 
     elementos.mensagens.innerHTML = lista.map((mensagem) => {
       const minha = mensagem.autorId === uidAtual;
+      const horario = mensagem.criadoEm
+        ? new Date(
+            mensagem.criadoEm.toDate ? mensagem.criadoEm.toDate() : mensagem.criadoEm
+          ).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+        : "";
 
       return `
         <div class="user-chat-message ${minha ? "minha" : "outra"}">
           <div class="user-chat-message-bubble">
             <div class="user-chat-message-author">${escaparHtml(mensagem.autorNome || "Usuário")}</div>
             <div class="user-chat-message-text">${escaparHtml(mensagem.texto || "")}</div>
+            <div class="user-chat-message-time">${escaparHtml(horario)}</div>
           </div>
         </div>
       `;
@@ -162,13 +163,12 @@ export function criarInterfaceChatUsuario() {
   function limparCampoMensagem() {
     if (elementos.campoMensagem) {
       elementos.campoMensagem.value = "";
+      elementos.campoMensagem.focus();
     }
   }
 
   function definirFormularioHabilitado(habilitado) {
-    if (elementos.campoMensagem) {
-      elementos.campoMensagem.disabled = !habilitado;
-    }
+    if (elementos.campoMensagem) elementos.campoMensagem.disabled = !habilitado;
 
     if (elementos.formularioEnvio) {
       const botao = elementos.formularioEnvio.querySelector("button");
