@@ -24,6 +24,10 @@ const termosWrap = document.getElementById("termosFaceWrap");
 
 const FACE_MODE = (new URLSearchParams(window.location.search).get("mode") || "").toLowerCase();
 const MODEL_CANDIDATES = ["/models", "./models", "models"];
+const FACE_API_CANDIDATES = [
+  "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js",
+  "https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"
+];
 
 let stream = null;
 let modelosCarregados = false;
@@ -34,26 +38,72 @@ function status(texto) {
   if (statusEl) statusEl.textContent = texto;
 }
 
-function aguardarFaceApi(timeoutMs = 10000) {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
+async function loadFaceApiScriptIfNeeded() {
+  if (window.faceapi) return true;
 
-    function check() {
-      if (window.faceapi) {
-        resolve(window.faceapi);
-        return;
-      }
+  for (const src of FACE_API_CANDIDATES) {
+    try {
+      await new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[data-face-api="${src}"]`);
+        if (existing) {
+          const timeout = setTimeout(() => reject(new Error("face-api.js não carregou a tempo.")), 20000);
 
-      if (Date.now() - start >= timeoutMs) {
-        reject(new Error("face-api.js não foi carregada a tempo."));
-        return;
-      }
+          const check = () => {
+            if (window.faceapi) {
+              clearTimeout(timeout);
+              resolve(true);
+              return;
+            }
+            requestAnimationFrame(check);
+          };
+          check();
+          return;
+        }
 
-      requestAnimationFrame(check);
+        const script = document.createElement("script");
+        script.src = src;
+        script.async = true;
+        script.defer = true;
+        script.dataset.faceApi = src;
+
+        const timeout = setTimeout(() => reject(new Error("face-api.js não carregou a tempo.")), 20000);
+
+        script.onload = () => {
+          const check = () => {
+            if (window.faceapi) {
+              clearTimeout(timeout);
+              resolve(true);
+              return;
+            }
+            requestAnimationFrame(check);
+          };
+          check();
+        };
+
+        script.onerror = () => {
+          clearTimeout(timeout);
+          reject(new Error(`Falha ao carregar ${src}`));
+        };
+
+        document.head.appendChild(script);
+      });
+
+      if (window.faceapi) return true;
+    } catch (error) {
+      console.warn("[FACE] Falha ao carregar script:", error.message);
     }
+  }
 
-    check();
-  });
+  throw new Error("face-api.js não foi carregada a tempo.");
+}
+
+async function aguardarFaceApi() {
+  if (window.faceapi) return window.faceapi;
+  await loadFaceApiScriptIfNeeded();
+  if (!window.faceapi) {
+    throw new Error("face-api.js não foi carregada a tempo.");
+  }
+  return window.faceapi;
 }
 
 async function manifestExiste(basePath) {
@@ -78,9 +128,7 @@ async function descobrirPastaModelos() {
     }
   }
 
-  throw new Error(
-    "A pasta de modelos faciais não foi encontrada em /models. Publique a pasta em public/models ou use o prebuild para copiá-la."
-  );
+  throw new Error("A pasta de modelos faciais não foi encontrada em /models.");
 }
 
 function atualizarVisibilidade() {
@@ -236,20 +284,13 @@ async function garantirDocumentoUsuario(uid, email = "") {
 
 async function cadastrarFace() {
   try {
-    if (!usuarioAtual) {
-      return status("Faça login antes de cadastrar o rosto.");
-    }
-
-    if (aceitarTermos && !aceitarTermos.checked) {
-      return status("Marque o aceite dos termos para cadastrar o rosto.");
-    }
+    if (!usuarioAtual) return status("Faça login antes de cadastrar o rosto.");
+    if (aceitarTermos && !aceitarTermos.checked) return status("Marque o aceite dos termos para cadastrar o rosto.");
 
     status("Capturando rosto para cadastro...");
-
     const det = await capturar();
 
     await garantirDocumentoUsuario(usuarioAtual.uid, usuarioAtual.email || "");
-
     const token = await usuarioAtual.getIdToken();
 
     const response = await fetch("/api/face-enroll", {
@@ -278,7 +319,6 @@ async function cadastrarFace() {
     });
 
     status("Rosto cadastrado com sucesso.");
-
     setTimeout(() => {
       location.href = "index.html";
     }, 1200);
@@ -291,7 +331,6 @@ async function cadastrarFace() {
 async function entrarComFace() {
   try {
     status("Capturando rosto para login...");
-
     const det = await capturar();
 
     const response = await fetch("/api/face-login", {
@@ -311,7 +350,6 @@ async function entrarComFace() {
     }
 
     await signInWithCustomToken(auth, data.customToken);
-
     status("Login facial realizado com sucesso.");
 
     setTimeout(() => {
