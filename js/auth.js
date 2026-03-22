@@ -1,20 +1,28 @@
 import { auth, db } from "./firebase-config.js";
 import {
   GoogleAuthProvider,
+  RecaptchaVerifier,
   signInWithPopup,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  signInWithPhoneNumber,
   onAuthStateChanged,
   setPersistence,
-  browserSessionPersistence
+  browserSessionPersistence,
+  signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   doc,
   setDoc,
   getDoc,
   updateDoc,
-  serverTimestamp
+  serverTimestamp,
+  collection,
+  getDocs,
+  limit,
+  query,
+  where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const ids = {
@@ -26,12 +34,19 @@ const ids = {
   recuperarBox: document.getElementById("recuperarBox"),
   btnRecuperarEmail: document.getElementById("btnRecuperarEmail"),
   btnRecuperarTelefone: document.getElementById("btnRecuperarTelefone"),
+  btnConfirmarCodigoTelefone: document.getElementById("btnConfirmarCodigoTelefone"),
   inputFotoPerfil: document.getElementById("fotoPerfil"),
-  fotoPreview: document.querySelector(".foto-preview")
+  fotoPreview: document.querySelector(".foto-preview"),
+  phoneRecoveryStepCodigo: document.getElementById("phoneRecoveryStepCodigo"),
+  phoneRecoveryStatus: document.getElementById("phoneRecoveryStatus")
 };
 
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+let recaptchaVerifier = null;
+let phoneConfirmationResult = null;
+let phoneRecoveryTarget = null;
 
 async function prepararSessao() {
   try {
@@ -51,6 +66,41 @@ function arquivo(id) {
 
 function alertar(texto) {
   window.alert(texto);
+}
+
+function setPhoneRecoveryStatus(texto, isError = false) {
+  if (!ids.phoneRecoveryStatus) return;
+  ids.phoneRecoveryStatus.textContent = texto;
+  ids.phoneRecoveryStatus.style.color = isError ? "#ff7b7b" : "#d7d7d7";
+}
+
+function somenteDigitos(valor = "") {
+  return String(valor).replace(/\D/g, "");
+}
+
+function normalizarTelefoneBR(valorTelefone = "") {
+  const digits = somenteDigitos(valorTelefone);
+
+  if (!digits) return "";
+
+  if (digits.startsWith("55") && digits.length >= 12) {
+    return `+${digits}`;
+  }
+
+  if (digits.length === 10 || digits.length === 11) {
+    return `+55${digits}`;
+  }
+
+  return digits.startsWith("+") ? digits : `+${digits}`;
+}
+
+function formatarUsernameAPartirNome(nome = "") {
+  return String(nome)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "")
+    .slice(0, 20);
 }
 
 function alternarAbas() {
@@ -118,9 +168,7 @@ function validarImagem(file, limiteMB = 2) {
 }
 
 async function uploadImagemCloudinary(file, pasta = "brasflix/avatars") {
-  if (!file) {
-    return { url: "", publicId: "" };
-  }
+  if (!file) return { url: "", publicId: "" };
 
   validarImagem(file, 2);
 
@@ -133,13 +181,10 @@ async function uploadImagemCloudinary(file, pasta = "brasflix/avatars") {
   formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
   formData.append("folder", pasta);
 
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-    {
-      method: "POST",
-      body: formData
-    }
-  );
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+    method: "POST",
+    body: formData
+  });
 
   const data = await response.json();
 
@@ -158,12 +203,16 @@ async function garantirDocumentoUsuario(usuario, dados = {}) {
   const snap = await getDoc(userRef);
   const existente = snap.exists() ? snap.data() || {} : {};
 
+  const telefoneE164 = dados.telefoneE164 || existente.telefoneE164 || normalizarTelefoneBR(dados.telefone || existente.telefone || usuario.phoneNumber || "");
+
   const base = {
     usuarioId: usuario.uid,
     uid: usuario.uid,
     nome: dados.nome || existente.nome || usuario.displayName || "Usuário",
     email: dados.email || existente.email || usuario.email || "",
     telefone: dados.telefone || existente.telefone || usuario.phoneNumber || "",
+    telefoneE164,
+    telefoneVerificado: typeof dados.telefoneVerificado === "boolean" ? dados.telefoneVerificado : (existente.telefoneVerificado ?? false),
     cpf: dados.cpf || existente.cpf || "",
     dataNascimento: dados.dataNascimento || existente.dataNascimento || "",
     cep: dados.cep || existente.cep || "",
@@ -178,14 +227,13 @@ async function garantirDocumentoUsuario(usuario, dados = {}) {
     bio: dados.bio || existente.bio || "",
     seguidores: Array.isArray(existente.seguidores) ? existente.seguidores : [],
     seguindo: Array.isArray(existente.seguindo) ? existente.seguindo : [],
-    categoriasFavoritas: Array.isArray(dados.categoriasFavoritas) ? dados.categoriasFavoritas : (Array.isArray(existente.categoriasFavoritas) ? existente.categoriasFavoritas : []),
+    categoriasFavoritas: Array.isArray(dados.categoriasFavoritas)
+      ? dados.categoriasFavoritas
+      : (Array.isArray(existente.categoriasFavoritas) ? existente.categoriasFavoritas : []),
     mostrarPerfilPublico: typeof dados.mostrarPerfilPublico === "boolean" ? dados.mostrarPerfilPublico : (existente.mostrarPerfilPublico ?? true),
     tipoLogin: dados.tipoLogin || existente.tipoLogin || "email",
     role: existente.role || "user",
-    perfilCompleto:
-      typeof dados.perfilCompleto === "boolean"
-        ? dados.perfilCompleto
-        : (existente.perfilCompleto ?? false),
+    perfilCompleto: typeof dados.perfilCompleto === "boolean" ? dados.perfilCompleto : (existente.perfilCompleto ?? false),
     onboardingStatus: dados.onboardingStatus || existente.onboardingStatus || "pending_face",
     faceLoginEnabled: existente.faceLoginEnabled ?? false,
     atualizadoEm: serverTimestamp()
@@ -227,6 +275,8 @@ async function cadastrarComEmail(event) {
   const email = valor("cadastro-email");
   const senha = valor("senha-cadastro");
   const confirmar = valor("confirmar-senha");
+  const telefone = valor("telefone");
+  const telefoneE164 = normalizarTelefoneBR(telefone);
 
   if (!nome || !email || !senha) {
     return alertar("Preencha nome, e-mail e senha.");
@@ -250,8 +300,10 @@ async function cadastrarComEmail(event) {
     await garantirDocumentoUsuario(usuario, {
       nome,
       email,
-      telefone: valor("telefone"),
-      username: valor("username") || nome.toLowerCase().replace(/[^a-z0-9]+/g, ""),
+      telefone,
+      telefoneE164,
+      telefoneVerificado: false,
+      username: valor("username") || formatarUsernameAPartirNome(nome),
       bio: valor("bio"),
       categoriasFavoritas: valor("categorias-favoritas").split(",").map((item) => item.trim()).filter(Boolean),
       cpf: valor("cpf"),
@@ -278,6 +330,7 @@ async function cadastrarComEmail(event) {
 
 async function loginComEmail(event) {
   event.preventDefault();
+
   const email = valor("login-email");
   const senha = valor("login-senha");
 
@@ -336,15 +389,127 @@ async function recuperarPorEmail() {
     await sendPasswordResetEmail(auth, email);
     alertar("E-mail de recuperação enviado com sucesso.");
   } catch (error) {
-    console.error("[Auth] Erro na recuperação:", error);
+    console.error("[Auth] Erro na recuperação por e-mail:", error);
     alertar(`Erro na recuperação: ${error.message}`);
   }
 }
 
-function recuperarPorTelefone() {
-  alertar(
-    "A recuperação por telefone ainda não foi implementada com Firebase Phone Auth. Por enquanto, use a recuperação por e-mail."
+function getRecaptcha() {
+  if (recaptchaVerifier) return recaptchaVerifier;
+
+  recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+    size: "normal"
+  });
+
+  return recaptchaVerifier;
+}
+
+async function buscarUsuarioPorTelefone(telefoneE164) {
+  const snap = await getDocs(
+    query(collection(db, "usuarios"), where("telefoneE164", "==", telefoneE164), limit(1))
   );
+
+  if (snap.empty) return null;
+
+  return {
+    id: snap.docs[0].id,
+    ...snap.docs[0].data()
+  };
+}
+
+async function recuperarPorTelefone() {
+  const telefone = valor("rec-telefone");
+
+  if (!telefone) {
+    return alertar("Informe o telefone cadastrado.");
+  }
+
+  const telefoneE164 = normalizarTelefoneBR(telefone);
+
+  try {
+    setPhoneRecoveryStatus("Validando telefone...");
+    phoneRecoveryTarget = await buscarUsuarioPorTelefone(telefoneE164);
+
+    if (!phoneRecoveryTarget) {
+      throw new Error("Nenhuma conta encontrada com esse telefone.");
+    }
+
+    await prepararSessao();
+
+    const verifier = getRecaptcha();
+    phoneConfirmationResult = await signInWithPhoneNumber(auth, telefoneE164, verifier);
+
+    if (ids.phoneRecoveryStepCodigo) {
+      ids.phoneRecoveryStepCodigo.style.display = "block";
+    }
+
+    setPhoneRecoveryStatus("Código SMS enviado. Digite o código recebido.");
+  } catch (error) {
+    console.error("[Auth] Erro na recuperação por telefone:", error);
+    setPhoneRecoveryStatus(error.message || "Falha ao enviar SMS.", true);
+    alertar(`Erro no SMS: ${error.message}`);
+  }
+}
+
+async function confirmarCodigoTelefone() {
+  const codigo = valor("rec-codigo");
+
+  if (!phoneConfirmationResult) {
+    return alertar("Primeiro envie o código SMS.");
+  }
+
+  if (!codigo) {
+    return alertar("Digite o código recebido por SMS.");
+  }
+
+  const novaSenha = window.prompt(
+    "Digite a nova senha.\nEla deve ter 8+ caracteres, com maiúscula, minúscula, número e caractere especial."
+  );
+
+  if (!novaSenha) return;
+
+  if (!senhaForte(novaSenha)) {
+    return alertar("A nova senha não atende aos critérios de segurança.");
+  }
+
+  try {
+    setPhoneRecoveryStatus("Validando código...");
+    const cred = await phoneConfirmationResult.confirm(codigo);
+    const phoneUser = cred.user;
+    const phoneIdToken = await phoneUser.getIdToken(true);
+
+    const response = await fetch("/api/reset-password-sms", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        phoneIdToken,
+        newPassword: novaSenha
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data?.ok) {
+      throw new Error(data?.error || "Falha ao redefinir senha via SMS.");
+    }
+
+    setPhoneRecoveryStatus("Senha redefinida com sucesso. Agora faça login normalmente.");
+    await signOut(auth);
+    phoneConfirmationResult = null;
+    phoneRecoveryTarget = null;
+
+    if (ids.phoneRecoveryStepCodigo) {
+      ids.phoneRecoveryStepCodigo.style.display = "none";
+    }
+
+    alertar("Senha redefinida com sucesso por SMS.");
+  } catch (error) {
+    console.error("[Auth] Erro ao confirmar código SMS:", error);
+    setPhoneRecoveryStatus(error.message || "Falha ao confirmar código.", true);
+    alertar(`Erro na confirmação do SMS: ${error.message}`);
+  }
 }
 
 async function redirecionarPorEstado(usuario) {
@@ -377,11 +542,24 @@ function bindEventos() {
   ids.btnAbrirRecuperar?.addEventListener("click", () => ids.recuperarBox?.classList.toggle("ativo"));
   ids.btnRecuperarEmail?.addEventListener("click", recuperarPorEmail);
   ids.btnRecuperarTelefone?.addEventListener("click", recuperarPorTelefone);
+  ids.btnConfirmarCodigoTelefone?.addEventListener("click", confirmarCodigoTelefone);
+
+  if (ids.phoneRecoveryStepCodigo) {
+    ids.phoneRecoveryStepCodigo.style.display = "none";
+  }
 }
 
 onAuthStateChanged(auth, async (usuario) => {
-  if (!usuario || !window.location.pathname.endsWith("login.html")) return;
+  if (!usuario || !window.location.pathname.toLowerCase().includes("login")) {
+    return;
+  }
+
+  const snap = await getDoc(doc(db, "usuarios", usuario.uid));
+  const dados = snap.exists() ? snap.data() || {} : {};
+
+  if (dados.role === "admin" || dados.faceLoginEnabled) {
+    await redirecionarPorEstado(usuario);
+  }
 });
 
 document.addEventListener("DOMContentLoaded", bindEventos);
-
