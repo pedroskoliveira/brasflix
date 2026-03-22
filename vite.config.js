@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import { resolve } from "node:path";
 
 export default defineConfig({
+  publicDir: "public",
   server: {
     host: true,
     port: 3000
@@ -29,4 +30,3 @@ export default defineConfig({
     }
   }
 });
-
