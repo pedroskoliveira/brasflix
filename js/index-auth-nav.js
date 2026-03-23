@@ -11,10 +11,18 @@ import {
 const loginButton = document.getElementById("loginButton");
 const logoutButton = document.getElementById("logoutButton");
 const userNome = document.getElementById("userNome");
+const navActions = document.querySelector(".nav-actions");
+
+function getAdminButton() {
+  return document.getElementById("adminAccessButton");
+}
 
 function mostrarLogin() {
   if (loginButton) loginButton.classList.remove("oculto");
   if (logoutButton) logoutButton.classList.add("oculto");
+
+  const adminButton = getAdminButton();
+  if (adminButton) adminButton.remove();
 
   if (userNome) {
     userNome.classList.add("oculto");
@@ -22,7 +30,30 @@ function mostrarLogin() {
   }
 }
 
-function mostrarUsuario(nome) {
+function garantirBotaoAdmin() {
+  if (!navActions) return null;
+
+  let adminButton = getAdminButton();
+
+  if (!adminButton) {
+    adminButton = document.createElement("button");
+    adminButton.id = "adminAccessButton";
+    adminButton.className = "btn-acao";
+    adminButton.textContent = "Admin";
+    adminButton.style.background = "#1b0b0b";
+    adminButton.style.border = "1px solid #e50914";
+    adminButton.style.color = "#fff";
+    adminButton.addEventListener("click", () => {
+      window.location.href = "/admin/dashboard.html";
+    });
+
+    navActions.insertBefore(adminButton, logoutButton || loginButton || null);
+  }
+
+  return adminButton;
+}
+
+function mostrarUsuario(nome, isAdmin = false) {
   if (loginButton) loginButton.classList.add("oculto");
   if (logoutButton) logoutButton.classList.remove("oculto");
 
@@ -30,21 +61,37 @@ function mostrarUsuario(nome) {
     userNome.classList.remove("oculto");
     userNome.textContent = `Olá, ${nome}`;
   }
+
+  if (isAdmin) {
+    garantirBotaoAdmin();
+  } else {
+    const adminButton = getAdminButton();
+    if (adminButton) adminButton.remove();
+  }
 }
 
-async function buscarNomeUsuario(uid, fallbackEmail = "") {
+async function buscarDadosUsuario(uid, fallbackEmail = "") {
   try {
     const snap = await getDoc(doc(db, "usuarios", uid));
 
     if (!snap.exists()) {
-      return fallbackEmail || "Usuário";
+      return {
+        nome: fallbackEmail || "Usuário",
+        isAdmin: false
+      };
     }
 
     const dados = snap.data() || {};
-    return dados.nome || dados.email || fallbackEmail || "Usuário";
+    return {
+      nome: dados.nome || dados.email || fallbackEmail || "Usuário",
+      isAdmin: dados.role === "admin"
+    };
   } catch (error) {
     console.error("[Navbar] Erro ao buscar usuário:", error);
-    return fallbackEmail || "Usuário";
+    return {
+      nome: fallbackEmail || "Usuário",
+      isAdmin: false
+    };
   }
 }
 
@@ -54,8 +101,8 @@ async function atualizarNavbar(user) {
     return;
   }
 
-  const nome = await buscarNomeUsuario(user.uid, user.email || "");
-  mostrarUsuario(nome);
+  const { nome, isAdmin } = await buscarDadosUsuario(user.uid, user.email || "");
+  mostrarUsuario(nome, isAdmin);
 }
 
 if (loginButton) {
