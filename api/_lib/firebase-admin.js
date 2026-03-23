@@ -4,10 +4,10 @@ import { getFirestore } from "firebase-admin/firestore";
 
 function getRequiredEnv(name) {
   const value = process.env[name];
-  if (!value) {
+  if (!value || !String(value).trim()) {
     throw new Error(`Variável de ambiente ausente: ${name}`);
   }
-  return value;
+  return String(value);
 }
 
 function getPrivateKey() {
@@ -15,8 +15,8 @@ function getPrivateKey() {
   return raw.replace(/\\n/g, "\n");
 }
 
-function createAdminApp() {
-  if (getApps().length) {
+function createOrGetAdminApp() {
+  if (getApps().length > 0) {
     return getApps()[0];
   }
 
@@ -33,8 +33,11 @@ function createAdminApp() {
   });
 }
 
-const adminApp = createAdminApp();
-const adminAuth = getAuth(adminApp);
-const adminDb = getFirestore(adminApp);
-
-export { adminApp, adminAuth, adminDb };
+export function getAdminServices() {
+  const app = createOrGetAdminApp();
+  return {
+    adminApp: app,
+    adminAuth: getAuth(app),
+    adminDb: getFirestore(app)
+  };
+}
