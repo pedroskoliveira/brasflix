@@ -36,16 +36,16 @@ body.tem-topbar {
 }
 
 .topbar-logo {
-  font-weight: 800;
-  color: #fff;
+  display: inline-flex;
+  align-items: center;
   text-decoration: none;
-  letter-spacing: 0.5px;
-  font-size: 1rem;
-  white-space: nowrap;
+  line-height: 0;
 }
 
-.topbar-logo span {
-  color: #e50914;
+.topbar-logo img {
+  width: 148px;
+  height: auto;
+  display: block;
 }
 
 .topbar-btn {
@@ -152,4 +152,12 @@ body.tem-topbar {
     padding: 4px 0 2px;
     text-align: center;
   }
+
+  .topbar-logo img {
+    width: 132px;
+  }
+}
+
+body.tem-topbar > header:not(.admin-header) {
+  display: none;
 }
