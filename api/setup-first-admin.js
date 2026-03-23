@@ -1,4 +1,4 @@
-import { adminAuth, adminDb } from "./_lib/firebase-admin.js";
+import { getAdminServices } from "./_lib/firebase-admin.js";
 
 function extractBearerToken(req) {
   const authHeader = req.headers.authorization || "";
@@ -11,8 +11,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const bootstrapSecret = process.env.SETUP_ADMIN_SECRET;
+    const { adminAuth, adminDb } = getAdminServices();
 
+    const bootstrapSecret = process.env.SETUP_ADMIN_SECRET;
     if (!bootstrapSecret) {
       return res.status(500).json({
         ok: false,
@@ -56,7 +57,6 @@ export default async function handler(req, res) {
     );
 
     await adminAuth.setCustomUserClaims(uid, {
-      ...(decoded || {}),
       admin: true,
       role: "admin"
     });
