@@ -36,10 +36,8 @@
                 <span class="admin-tag">Painel Administrativo</span>
                 <h1>Gerenciamento de vídeos</h1>
                 <p>
-                    <p>
-  Esta área permite cadastrar, organizar e destacar vídeos da BRASFLIX.
-  Nesta etapa, o cadastro será feito por URL de thumbnail e URL do vídeo.
-</p>
+                    Esta área permite cadastrar, organizar e destacar vídeos da BRASFLIX.
+                    O upload envia a thumbnail e o vídeo para o Cloudinary e salva os dados no Firebase.
                 </p>
             </div>
         </section>
@@ -49,9 +47,9 @@
                 <h2>Cadastrar novo vídeo</h2>
             </div>
 
-            <form class="admin-formulario" id="form-video-admin">
+            <form class="admin-formulario" id="formVideo" data-admin-video-form>
 
-                <div class="admin-status-box" id="adminVideosStatus">Preencha os campos e envie um vídeo.</div>
+                <div class="admin-status-box" id="adminVideosStatus">Preencha os campos e clique em salvar vídeo.</div>
 
                 <div class="linha-admin">
                     <div class="grupo-admin">
@@ -91,15 +89,19 @@
 
                 <div class="linha-admin">
                     <div class="grupo-admin">
-                        <label for="thumbnailVideo">Thumbnail</label>
-                        <input type="file" id="thumbnailVideo" accept="image/*">
-                        <div class="admin-preview-box" id="previewThumbnailAdmin"><span class="admin-preview-vazio">Thumbnail aparecerá aqui.</span></div>
+                        <label for="thumbnailFile">Thumbnail</label>
+                        <input type="file" id="thumbnailFile" accept="image/*">
+                        <div class="admin-preview-box" id="previewThumbnailAdmin">
+                            <span class="admin-preview-vazio">A prévia da thumbnail aparecerá aqui.</span>
+                        </div>
                     </div>
 
                     <div class="grupo-admin">
-                        <label for="arquivoVideo">Arquivo de vídeo</label>
-                        <input type="file" id="arquivoVideo" accept="video/*">
-                        <div class="admin-preview-box" id="previewArquivoVideoAdmin"><span class="admin-preview-vazio">Prévia do vídeo aparecerá aqui.</span></div>
+                        <label for="videoFile">Arquivo de vídeo</label>
+                        <input type="file" id="videoFile" accept="video/*">
+                        <div class="admin-preview-box" id="previewArquivoVideoAdmin">
+                            <span class="admin-preview-vazio">A prévia do vídeo aparecerá aqui.</span>
+                        </div>
                     </div>
                 </div>
 
@@ -131,8 +133,8 @@
                 </div>
 
                 <div class="admin-botoes">
-                    <button type="submit" class="btn-admin-principal">Salvar vídeo</button>
-                    <button type="reset" class="btn-admin-secundario">Limpar formulário</button>
+                    <button type="submit" class="btn-admin-principal" id="btnSalvarVideo">Salvar vídeo</button>
+                    <button type="reset" class="btn-admin-secundario" id="btnLimparVideo">Limpar formulário</button>
                 </div>
 
             </form>
@@ -158,8 +160,8 @@
 
     </main>
 
-   <script type="module" src="../js/admin-videos.js"></script>
-<script type="module" src="../js/admin-auth.js"></script>
+    <script type="module" src="../js/admin-videos.js"></script>
+    <script type="module" src="../js/admin-auth.js"></script>
     <script type="module" src="../js/topbar.js"></script>
 </body>
 </html>
