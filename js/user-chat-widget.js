@@ -69,7 +69,6 @@ function reordenarContatosPorConversas() {
   estado.contatos.sort((a, b) => {
     const convA = estado.conversasMap.get(a.uid);
     const convB = estado.conversasMap.get(b.uid);
-
     const tempoA = convA?.ultimaMensagemEm?.toMillis?.() || convA?.ultimaMensagemEm?.seconds || 0;
     const tempoB = convB?.ultimaMensagemEm?.toMillis?.() || convB?.ultimaMensagemEm?.seconds || 0;
 
@@ -91,7 +90,6 @@ function enriquecerContatosComConversa(lista = []) {
 
 function filtrarContatos(texto = "") {
   const termo = (texto || "").trim().toLowerCase();
-
   const base = !termo
     ? [...estado.contatos]
     : estado.contatos.filter((contato) => {
@@ -108,7 +106,7 @@ async function carregarMeuPerfil(uid) {
   try {
     const referencia = doc(db, "usuarios", uid);
     const documento = await getDoc(referencia);
-    estado.perfilAtual = documento.exists() ? (documento.data() || {}) : null;
+    estado.perfilAtual = documento.exists() ? documento.data() || {} : null;
   } catch (erro) {
     console.error("[Chat] Erro ao carregar perfil atual:", erro);
     estado.perfilAtual = null;
@@ -152,7 +150,6 @@ async function buscarSalaExistente(uidAtual, uidOutro) {
   const snapshot = await getDoc(salaRef);
 
   if (!snapshot.exists()) return null;
-
   const sala = { id: snapshot.id, ...snapshot.data() };
   return ChatUsuarios.salaEhValida(sala) ? sala : null;
 }
@@ -160,8 +157,8 @@ async function buscarSalaExistente(uidAtual, uidOutro) {
 async function criarSala(contato) {
   const uidAtual = estado.usuarioAtual.uid;
   const uidOutro = contato.uid;
-  const participantesOrdenados = ChatUsuarios.ordenarParticipantes(uidAtual, uidOutro);
-  const roomId = ChatUsuarios.gerarRoomId(uidAtual, uidOutro);
+  const participantesOrdenados = ChatUsuarios.gerarRoomId(uidAtual, uidOutro);
+  const roomId = participantesOrdenados;
 
   const meuNome = ChatUsuarios.obterNomeExibicao({
     nome: estado.perfilAtual?.nome,
@@ -200,14 +197,10 @@ function ouvirMensagensDaConversa(roomId) {
   estado.cancelarMensagens?.();
 
   const consulta = query(collection(db, "chatRooms", roomId, "mensagens"), orderBy("criadoEm", "asc"));
-
   estado.cancelarMensagens = onSnapshot(
     consulta,
     (snapshot) => {
-      const mensagens = snapshot.docs.map((documento) => ({
-        id: documento.id,
-        ...documento.data()
-      }));
+      const mensagens = snapshot.docs.map((documento) => ({ id: documento.id, ...documento.data() }));
       ui.renderizarMensagens(mensagens, estado.usuarioAtual?.uid || "");
     },
     (erro) => {
@@ -227,7 +220,6 @@ async function abrirOuCriarConversa(contatoRecebido) {
   }
 
   const contato = ChatUsuarios.normalizarContato(contatoRecebido);
-
   if (!ChatUsuarios.contatoEhValido(contato)) {
     ui.definirStatus("Contato inválido.");
     return;
@@ -266,9 +258,7 @@ async function abrirOuCriarConversa(contatoRecebido) {
 
 async function selecionarContato(uidContato) {
   const contato = estado.contatos.find((item) => item.uid === uidContato);
-  if (contato) {
-    await abrirOuCriarConversa(contato);
-  }
+  if (contato) await abrirOuCriarConversa(contato);
 }
 
 async function enviarMensagem(texto) {
@@ -304,7 +294,7 @@ async function enviarMensagem(texto) {
     ui.definirStatus("Mensagem enviada.");
   } catch (erro) {
     console.error("[Chat] Erro ao enviar mensagem:", erro);
-    ui.definirStatus("Erro ao enviar mensagem.");
+    ui.definirStatus(`Erro ao enviar mensagem. ${erro?.message || ""}`.trim());
   }
 }
 
@@ -323,7 +313,6 @@ function ouvirMinhasConversas() {
     consulta,
     (snapshot) => {
       estado.conversasMap.clear();
-
       snapshot.forEach((documento) => {
         const dados = documento.data() || {};
         const outroUid = (dados.participantes || []).find((uid) => uid !== estado.usuarioAtual.uid);
