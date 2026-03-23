@@ -51,6 +51,8 @@
 
             <form class="admin-formulario" id="form-video-admin">
 
+                <div class="admin-status-box" id="adminVideosStatus">Preencha os campos e envie um vídeo.</div>
+
                 <div class="linha-admin">
                     <div class="grupo-admin">
                         <label for="tituloVideo">Título do vídeo</label>
@@ -91,11 +93,13 @@
                     <div class="grupo-admin">
                         <label for="thumbnailVideo">Thumbnail</label>
                         <input type="file" id="thumbnailVideo" accept="image/*">
+                        <div class="admin-preview-box" id="previewThumbnailAdmin"><span class="admin-preview-vazio">Thumbnail aparecerá aqui.</span></div>
                     </div>
 
                     <div class="grupo-admin">
                         <label for="arquivoVideo">Arquivo de vídeo</label>
                         <input type="file" id="arquivoVideo" accept="video/*">
+                        <div class="admin-preview-box" id="previewArquivoVideoAdmin"><span class="admin-preview-vazio">Prévia do vídeo aparecerá aqui.</span></div>
                     </div>
                 </div>
 
@@ -159,4 +163,3 @@
     <script type="module" src="../js/topbar.js"></script>
 </body>
 </html>
-
