@@ -61,7 +61,8 @@ const estado = {
   conversaAtual: null,
   conversasMap: new Map(),
   cancelarMensagens: null,
-  cancelarConversas: null
+  cancelarConversas: null,
+  contatoPendente: null
 };
 
 function reordenarContatosPorConversas() {
@@ -217,7 +218,10 @@ function ouvirMensagensDaConversa(roomId) {
 }
 
 async function abrirOuCriarConversa(contatoRecebido) {
+  ui.abrirPainel();
+
   if (!estado.usuarioAtual) {
+    estado.contatoPendente = contatoRecebido || null;
     ui.definirStatus("Faça login para usar o chat.");
     return;
   }
@@ -291,7 +295,7 @@ async function enviarMensagem(texto) {
     });
 
     await updateDoc(doc(db, "chatRooms", estado.conversaAtual.roomId), {
-      ultimaMensagem: ChatUsuarios.limitarTexto(mensagem, 300),
+      ultimaMensagem: mensagem,
       ultimaMensagemEm: serverTimestamp(),
       ultimaMensagemPor: estado.usuarioAtual.uid
     });
@@ -320,43 +324,31 @@ function ouvirMinhasConversas() {
     (snapshot) => {
       estado.conversasMap.clear();
 
-      snapshot.docs.forEach((documento) => {
+      snapshot.forEach((documento) => {
         const dados = documento.data() || {};
         const outroUid = (dados.participantes || []).find((uid) => uid !== estado.usuarioAtual.uid);
         if (!outroUid) return;
-
-        estado.conversasMap.set(outroUid, {
-          roomId: documento.id,
-          ultimaMensagem: dados.ultimaMensagem || "",
-          ultimaMensagemEm: dados.ultimaMensagemEm || null,
-          ultimaMensagemPor: dados.ultimaMensagemPor || ""
-        });
+        estado.conversasMap.set(outroUid, { id: documento.id, ...dados });
       });
 
       reordenarContatosPorConversas();
       filtrarContatos(ui.obterTextoBusca());
-
-      const totalComMensagem = snapshot.docs.filter((documento) => documento.data()?.ultimaMensagem).length;
-      if (totalComMensagem > 0) {
-        ui.mostrarToast(`Você tem ${totalComMensagem} conversa(s) ativa(s).`);
-      }
     },
     (erro) => {
       console.error("[Chat] Erro ao ouvir conversas:", erro);
+      ui.definirStatus("Erro ao atualizar a lista de conversas.");
     }
   );
 }
 
 function limparEstadoQuandoSai() {
   estado.perfilAtual = null;
-  estado.conversaAtual = null;
   estado.contatos = [];
   estado.contatosFiltrados = [];
+  estado.conversaAtual = null;
   estado.conversasMap.clear();
-
   estado.cancelarMensagens?.();
   estado.cancelarMensagens = null;
-
   estado.cancelarConversas?.();
   estado.cancelarConversas = null;
 
@@ -390,6 +382,12 @@ function iniciarAutenticacao() {
     ui.definirCabecalhoConversa("Selecione um contato");
     ui.definirFormularioHabilitado(false);
     ui.definirStatus("Selecione um contato para iniciar.");
+
+    if (estado.contatoPendente) {
+      const pendente = estado.contatoPendente;
+      estado.contatoPendente = null;
+      await abrirOuCriarConversa(pendente);
+    }
   });
 }
 
@@ -406,10 +404,12 @@ iniciarChatUsuarios();
 window.BrasflixUserChat = {
   openConversationWith(contato) {
     if (!contato) return;
+    ui.abrirPainel();
     abrirOuCriarConversa(contato);
   },
   openPanel() {
     ui.abrirPainel();
+    ui.definirStatus(estado.usuarioAtual ? "Selecione um contato para iniciar." : "Faça login para usar o chat.");
   },
   closePanel() {
     ui.fecharPainel();
