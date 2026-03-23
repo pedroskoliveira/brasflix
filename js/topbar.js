@@ -21,10 +21,22 @@ function currentPageKey() {
   return "home";
 }
 
+function assetPath(relativePath = "") {
+  const path = location.pathname.toLowerCase();
+  const prefix = path.includes("/admin/") ? "../" : "";
+  return `${prefix}${relativePath.replace(/^\//, "")}`;
+}
+
+function pagePath(relativePath = "") {
+  const path = location.pathname.toLowerCase();
+  const prefix = path.includes("/admin/") ? "../" : "";
+  return `${prefix}${relativePath.replace(/^\//, "")}`;
+}
+
 function buildLink(href, label, key, extraClass = "") {
   const ativo = currentPageKey() === key ? " ativo" : "";
   const extra = extraClass ? ` ${extraClass}` : "";
-  return `<a class="topbar-btn${ativo}${extra}" href="${href}">${label}</a>`;
+  return `<a class="topbar-btn${ativo}${extra}" href="${pagePath(href)}">${label}</a>`;
 }
 
 function createTopbarShell() {
@@ -43,29 +55,29 @@ function createTopbarShell() {
 
 function logoMarkup(extraClass = "") {
   return `
-    <a class="topbar-logo${extraClass ? ` ${extraClass}` : ""}" href="/index.html" aria-label="Ir para a página inicial da BRASFLIX">
-      <img src="/imagens/logo.png" alt="BRASFLIX">
+    <a class="topbar-logo${extraClass ? ` ${extraClass}` : ""}" href="${pagePath("index.html")}" aria-label="Ir para a página inicial da BRASFLIX">
+      <img src="${assetPath("imagens/logo.png")}" alt="BRASFLIX">
     </a>
   `;
 }
 
 function montarLinks(userName = "", isAdmin = false) {
   const publicLinks = [
-    buildLink("/index.html", "Início", "home"),
-    buildLink("/video.html", "Vídeos", "videos"),
-    buildLink("/usuarios.html", "Pessoas", "pessoas"),
-    buildLink("/perfil.html", "Perfil", "perfil"),
-    buildLink("/analytics.html", "Analytics", "analytics"),
-    buildLink("/face.html", "Face", "face")
+    buildLink("index.html", "Início", "home"),
+    buildLink("video.html", "Vídeos", "videos"),
+    buildLink("usuarios.html", "Pessoas", "pessoas"),
+    buildLink("perfil.html", "Perfil", "perfil"),
+    buildLink("analytics.html", "Analytics", "analytics"),
+    buildLink("face.html", "Face", "face")
   ];
 
   const adminLinks = isAdmin
     ? [
-        buildLink("/admin/dashboard.html", "Admin", "admin-dashboard", "topbar-admin"),
-        buildLink("/admin/videos.html", "Postar vídeos", "admin-videos", "topbar-admin"),
-        buildLink("/admin/categorias.html", "Categorias", "admin-categorias", "topbar-admin"),
-        buildLink("/admin/comentarios.html", "Comentários", "admin-comentarios", "topbar-admin"),
-        buildLink("/admin/analytics.html", "Analytics Admin", "admin-analytics", "topbar-admin")
+        buildLink("admin/dashboard.html", "Admin", "admin-dashboard", "topbar-admin"),
+        buildLink("admin/videos.html", "Postar vídeos", "admin-videos", "topbar-admin"),
+        buildLink("admin/categorias.html", "Categorias", "admin-categorias", "topbar-admin"),
+        buildLink("admin/comentarios.html", "Comentários", "admin-comentarios", "topbar-admin"),
+        buildLink("admin/analytics.html", "Analytics Admin", "admin-analytics", "topbar-admin")
       ]
     : [];
 
@@ -124,7 +136,7 @@ function bindTopbarEvents(topbar) {
       await signOut(auth);
       localStorage.removeItem("faceLoginUser");
       localStorage.removeItem("faceLoginEmail");
-      location.href = "/login.html";
+      location.href = pagePath("login.html");
     } catch (error) {
       console.error("[Topbar] Erro ao sair:", error);
       alert("Não foi possível sair agora.");
