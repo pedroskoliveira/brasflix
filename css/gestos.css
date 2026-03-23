@@ -547,6 +547,38 @@
     max-width:calc(100vw - 24px);
   }
 }
+.gestos-indicador.oculto{display:none !important;}
+.gestos-indicador{
+    left:24px;
+    bottom:168px;
+    min-width:160px;
+    justify-content:center;
+}
+
+.gestos-widget{
+    left:24px;
+    bottom:224px;
+}
+
+@media (max-width:700px){
+    .gestos-indicador{
+        left:12px;
+        bottom:152px;
+        min-width:auto;
+        padding:0 12px;
+    }
+
+    .gestos-widget{
+        left:12px;
+        bottom:208px;
+    }
+
+    .gestos-panel{
+        max-width:calc(100vw - 24px);
+    }
+}
+
+
 
 
 
