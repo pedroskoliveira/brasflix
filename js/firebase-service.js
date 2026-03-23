@@ -8,6 +8,7 @@ import {
   getDocs,
   updateDoc,
   doc,
+  getDoc,
   increment,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -41,13 +42,25 @@ async function buscarVideoPorId(videoId = "") {
     const consulta = query(collection(db, "videos"), where("id", "==", videoId));
     const snapshot = await getDocs(consulta);
 
-    if (snapshot.empty) return null;
+    if (!snapshot.empty) {
+      const primeiro = snapshot.docs[0];
+      return {
+        id: primeiro.data()?.id || primeiro.id,
+        docId: primeiro.id,
+        ...primeiro.data()
+      };
+    }
 
-    const primeiro = snapshot.docs[0];
-    return {
-      docId: primeiro.id,
-      ...primeiro.data()
-    };
+    const direto = await getDoc(doc(db, "videos", videoId));
+    if (direto.exists()) {
+      return {
+        id: direto.data()?.id || direto.id,
+        docId: direto.id,
+        ...direto.data()
+      };
+    }
+
+    return null;
   } catch (error) {
     console.error("[FirebaseService] Falha ao buscar vídeo por ID:", error);
     return null;
@@ -80,6 +93,7 @@ async function buscarRecomendacoesPorCategoria(categoria = "") {
 
     return snapshot.docs
       .map((documento) => ({
+        id: documento.data()?.id || documento.id,
         docId: documento.id,
         ...documento.data()
       }))
@@ -97,6 +111,7 @@ async function buscarTodosVideos() {
     const snapshot = await getDocs(collection(db, "videos"));
 
     return snapshot.docs.map((documento) => ({
+      id: documento.data()?.id || documento.id,
       docId: documento.id,
       ...documento.data()
     }));
@@ -144,6 +159,7 @@ async function buscarVideosPorCategoria(categoria = "") {
     const snapshot = await getDocs(consulta);
 
     return snapshot.docs.map((documento) => ({
+      id: documento.data()?.id || documento.id,
       docId: documento.id,
       ...documento.data()
     }));
