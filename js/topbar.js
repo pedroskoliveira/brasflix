@@ -41,6 +41,14 @@ function createTopbarShell() {
   return topbar;
 }
 
+function logoMarkup(extraClass = "") {
+  return `
+    <a class="topbar-logo${extraClass ? ` ${extraClass}` : ""}" href="/index.html" aria-label="Ir para a página inicial da BRASFLIX">
+      <img src="/imagens/logo.png" alt="BRASFLIX">
+    </a>
+  `;
+}
+
 function montarLinks(userName = "", isAdmin = false) {
   const publicLinks = [
     buildLink("/index.html", "Início", "home"),
@@ -57,9 +65,7 @@ function montarLinks(userName = "", isAdmin = false) {
         buildLink("/admin/videos.html", "Postar vídeos", "admin-videos", "topbar-admin"),
         buildLink("/admin/categorias.html", "Categorias", "admin-categorias", "topbar-admin"),
         buildLink("/admin/comentarios.html", "Comentários", "admin-comentarios", "topbar-admin"),
-        buildLink("/admin/analytics.html", "Analytics Admin", "admin-analytics", "topbar-admin"),
-        buildLink("/admin-setter.html", "Admin Setter", "admin-setter", "topbar-admin"),
-        buildLink("/setup-admin.html", "Setup Admin", "setup-admin", "topbar-admin")
+        buildLink("/admin/analytics.html", "Analytics Admin", "admin-analytics", "topbar-admin")
       ]
     : [];
 
@@ -67,7 +73,7 @@ function montarLinks(userName = "", isAdmin = false) {
 
   return {
     desktopLeft: `
-      <a class="topbar-logo" href="/index.html"><span>BRAS</span>FLIX</a>
+      ${logoMarkup()}
       <div class="topbar-links">${allLinks.join("")}</div>
     `,
     desktopRight: `
@@ -76,7 +82,7 @@ function montarLinks(userName = "", isAdmin = false) {
     `,
     mobilePanel: `
       <div class="topbar-mobile-links">
-        <a class="topbar-logo mobile" href="/index.html"><span>BRAS</span>FLIX</a>
+        ${logoMarkup("mobile")}
         ${allLinks.join("")}
         <div class="topbar-mobile-user">${userName ? `Olá, ${userName}` : ""}</div>
         <button class="topbar-btn sair" id="topbarLogoutBtnMobile" type="button">Sair</button>
@@ -87,10 +93,7 @@ function montarLinks(userName = "", isAdmin = false) {
 
 async function buscarDadosUsuario(user) {
   if (!user) {
-    return {
-      nome: "",
-      isAdmin: false
-    };
+    return { nome: "", isAdmin: false };
   }
 
   try {
@@ -136,9 +139,7 @@ function bindTopbarEvents(topbar) {
   });
 
   mobilePanel?.querySelectorAll("a").forEach((link) => {
-    link.addEventListener("click", () => {
-      mobilePanel.classList.remove("aberto");
-    });
+    link.addEventListener("click", () => mobilePanel.classList.remove("aberto"));
   });
 }
 
@@ -149,7 +150,8 @@ async function renderTopbar(user) {
     document.querySelector(".brasflix-topbar") ||
     path.endsWith("login.html") ||
     path === "/login" ||
-    path === "/login.html"
+    path === "/login.html" ||
+    currentPageKey() === "home"
   ) {
     return;
   }
