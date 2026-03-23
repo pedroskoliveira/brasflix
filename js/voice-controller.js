@@ -1,107 +1,162 @@
-const VoiceUI = {
-  init() {
-    this.widget = document.getElementById("voiceWidget");
-    this.toggle = document.getElementById("voiceToggle");
-    this.minimizar = document.getElementById("voiceMinimizar");
-    this.status = document.getElementById("voiceStatus");
-    this.btnOuvir = document.getElementById("btnOuvirComando");
-    this.btnLer = document.getElementById("btnLerResposta");
+import { signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { auth } from "./firebase-config.js";
+import VoiceIntent from "./voice-intent.js";
+import { PedriaCore } from "./pedria-core.js";
 
-    if (!this.widget || !this.toggle || !this.status) return;
+const SpeechRecognitionAPI =
+  window.SpeechRecognition || window.webkitSpeechRecognition || null;
 
-    this.toggle.addEventListener("click", () => this.abrir());
-    this.minimizar?.addEventListener("click", () => this.fechar());
-    this.btnOuvir?.addEventListener("click", () => this.ouvirComando());
-    this.btnLer?.addEventListener("click", () => this.lerUltimaMensagem());
+const SpeechSynthesisAPI = window.speechSynthesis || null;
 
-    this.setStatus("Clique no microfone para abrir o assistente de voz.");
+function falar(texto = "") {
+  if (!SpeechSynthesisAPI || !texto) return;
+
+  SpeechSynthesisAPI.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(texto);
+  utterance.lang = "pt-BR";
+  utterance.rate = 1;
+  utterance.pitch = 1;
+
+  SpeechSynthesisAPI.speak(utterance);
+}
+
+function paginaAtual() {
+  const path = window.location.pathname.toLowerCase();
+
+  if (path.includes("perfil")) return "perfil";
+  if (path.includes("usuarios")) return "usuarios";
+  if (path.includes("analytics")) return "analytics";
+  if (path.includes("face")) return "face";
+  if (path.includes("video")) return "video";
+  if (path.includes("login")) return "login";
+  return "index";
+}
+
+async function executarIntent(resultado) {
+  switch (resultado.intent) {
+    case "navigate":
+      window.location.href = resultado.target;
+      return {
+        ok: true,
+        resposta: `Abrindo ${resultado.target.replace(".html", "")}.`
+      };
+
+    case "logout":
+      await signOut(auth);
+      window.location.href = "login.html";
+      return {
+        ok: true,
+        resposta: "Saindo da sua conta."
+      };
+
+    case "open_chat":
+      if (window.BrasflixUserChat?.openPanel) {
+        window.BrasflixUserChat.openPanel();
+        return {
+          ok: true,
+          resposta: "Abrindo o chat entre usuários."
+        };
+      }
+      return {
+        ok: false,
+        resposta: "O chat não está disponível nesta página."
+      };
+
+    case "pedria_help":
+      return {
+        ok: true,
+        resposta: "Eu posso ajudar com vídeos, perfil, pessoas, analytics, login facial, admin e navegação da BRASFLIX."
+      };
+
+    case "ask_ai": {
+      const ia = await PedriaCore.responder(resultado.prompt, {
+        pagina: paginaAtual(),
+        origem: "voz"
+      });
+
+      return {
+        ok: true,
+        resposta: ia?.resposta || "Não consegui responder agora."
+      };
+    }
+
+    default:
+      return {
+        ok: false,
+        resposta: "Não entendi esse comando."
+      };
+  }
+}
+
+export const VoiceController = {
+  recognition: null,
+  ouvindo: false,
+  ultimoTexto: "",
+
+  suportado() {
+    return !!SpeechRecognitionAPI;
   },
 
-  abrir() {
-    this.widget.classList.remove("minimizado");
-    this.setStatus("Assistente aberto. Você pode ouvir um comando ou pedir para ler a última resposta.");
-  },
+  falar,
 
-  fechar() {
-    this.widget.classList.add("minimizado");
-  },
-
-  setStatus(texto, tipo = "") {
-    if (!this.status) return;
-    this.status.textContent = texto;
-    this.status.classList.remove("ativo", "erro");
-    if (tipo) this.status.classList.add(tipo);
-  },
-
-  lerUltimaMensagem() {
-    const ultima = Array.from(document.querySelectorAll('#chatbot-messages .chatbot-message-bot, #chatbot-messages .chatbot-message-system')).pop();
-    const texto = ultima?.textContent?.trim() || "Ainda não há resposta para eu ler.";
-    this.falar(texto);
-  },
-
-  falar(texto) {
-    if (!('speechSynthesis' in window)) {
-      this.setStatus("Seu navegador não suporta leitura por voz.", "erro");
+  iniciarReconhecimento({
+    onStart = () => {},
+    onEnd = () => {},
+    onError = () => {},
+    onResult = () => {}
+  } = {}) {
+    if (!SpeechRecognitionAPI) {
+      onError(new Error("Reconhecimento de voz não suportado neste navegador."));
       return;
     }
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(texto);
-    utter.lang = localStorage.getItem('brasflix_lang') || 'pt-BR';
-    window.speechSynthesis.speak(utter);
-    this.setStatus("Lendo resposta em voz alta.", "ativo");
+
+    if (this.ouvindo) return;
+
+    this.recognition = new SpeechRecognitionAPI();
+    this.recognition.lang = "pt-BR";
+    this.recognition.interimResults = false;
+    this.recognition.maxAlternatives = 1;
+    this.recognition.continuous = false;
+
+    this.recognition.onstart = () => {
+      this.ouvindo = true;
+      onStart();
+    };
+
+    this.recognition.onend = () => {
+      this.ouvindo = false;
+      onEnd();
+    };
+
+    this.recognition.onerror = (event) => {
+      this.ouvindo = false;
+      onError(new Error(event?.error || "Erro no reconhecimento de voz."));
+    };
+
+    this.recognition.onresult = async (event) => {
+      const texto = event?.results?.[0]?.[0]?.transcript || "";
+      this.ultimoTexto = texto;
+
+      const intent = VoiceIntent.interpretar(texto);
+      const exec = await executarIntent(intent);
+
+      onResult({
+        texto,
+        intent,
+        exec
+      });
+    };
+
+    this.recognition.start();
   },
 
-  async ouvirComando() {
-    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Recognition) {
-      this.setStatus("Seu navegador não suporta reconhecimento de voz.", "erro");
-      return;
+  pararReconhecimento() {
+    if (this.recognition && this.ouvindo) {
+      this.recognition.stop();
     }
-
-    const rec = new Recognition();
-    rec.lang = localStorage.getItem('brasflix_lang') || 'pt-BR';
-    rec.interimResults = false;
-    rec.maxAlternatives = 1;
-
-    this.setStatus("Estou ouvindo... fale agora.", "ativo");
-
-    rec.onresult = async (event) => {
-      const texto = event.results?.[0]?.[0]?.transcript?.trim() || "";
-      if (!texto) {
-        this.setStatus("Não consegui entender o comando.", "erro");
-        return;
-      }
-
-      this.setStatus(`Comando ouvido: ${texto}`, "ativo");
-
-      try {
-        const motor = window.VoiceIntent;
-        if (!motor) {
-          this.setStatus("A lógica de voz não foi carregada.", "erro");
-          return;
-        }
-        const intencao = motor.classificar(texto);
-        const resultado = await motor.executarIntencao(intencao);
-        const mensagem = resultado?.mensagem || "Comando executado.";
-        this.setStatus(mensagem, resultado?.ok ? "ativo" : "erro");
-        if (resultado?.mensagem && !resultado?.abrirChat) this.falar(mensagem);
-      } catch (error) {
-        console.error('[VoiceUI] Erro:', error);
-        this.setStatus(error.message || 'Erro ao processar o comando.', 'erro');
-      }
-    };
-
-    rec.onerror = () => this.setStatus("Erro ao ouvir o comando.", "erro");
-    rec.onend = () => {
-      if (this.status?.textContent === 'Estou ouvindo... fale agora.') {
-        this.setStatus('Escuta finalizada.');
-      }
-    };
-
-    rec.start();
   }
 };
 
-document.addEventListener('DOMContentLoaded', () => VoiceUI.init());
-window.VoiceUI = VoiceUI;
-export { VoiceUI };
+window.VoiceController = VoiceController;
+export default VoiceController;
