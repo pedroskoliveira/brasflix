@@ -11,7 +11,7 @@ import {
 const loginButton = document.getElementById("loginButton");
 const logoutButton = document.getElementById("logoutButton");
 const userNome = document.getElementById("userNome");
-const navActions = document.querySelector(".nav-actions");
+const navActions = document.querySelector(".nav-actions") || document.querySelector(".nav");
 
 function getAdminButton() {
   return document.getElementById("adminAccessButton");
