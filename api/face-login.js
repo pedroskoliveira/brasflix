@@ -1,4 +1,4 @@
-import { adminAuth, adminDb } from "./_lib/firebase-admin.js";
+import { getAdminServices } from "./_lib/firebase-admin.js";
 
 function toNumericDescriptor(descriptor) {
   if (!Array.isArray(descriptor)) {
@@ -24,12 +24,10 @@ function euclideanDistance(a = [], b = []) {
   }
 
   let sum = 0;
-
   for (let i = 0; i < a.length; i += 1) {
     const diff = Number(a[i]) - Number(b[i]);
     sum += diff * diff;
   }
-
   return Math.sqrt(sum);
 }
 
@@ -39,10 +37,15 @@ export default async function handler(req, res) {
   }
 
   try {
+    const { adminAuth, adminDb } = getAdminServices();
+
     const { descriptor } = req.body || {};
     const inputDescriptor = toNumericDescriptor(descriptor);
 
-    const snap = await adminDb.collection("usuarios").where("faceLoginEnabled", "==", true).get();
+    const snap = await adminDb
+      .collection("usuarios")
+      .where("faceLoginEnabled", "==", true)
+      .get();
 
     if (snap.empty) {
       return res.status(404).json({
@@ -57,7 +60,6 @@ export default async function handler(req, res) {
     snap.forEach((docSnap) => {
       const data = docSnap.data() || {};
       const savedDescriptor = Array.isArray(data.faceDescriptor) ? data.faceDescriptor : null;
-
       if (!savedDescriptor || savedDescriptor.length !== 128) return;
 
       const distance = euclideanDistance(inputDescriptor, savedDescriptor);
@@ -90,7 +92,6 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error("[face-login] Erro:", error);
-
     return res.status(500).json({
       ok: false,
       error: error?.message || "Erro interno no login facial."
