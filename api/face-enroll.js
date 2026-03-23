@@ -1,5 +1,23 @@
 import { adminAuth, adminDb } from "./_lib/firebase-admin.js";
 
+function toNumericDescriptor(descriptor) {
+  if (!Array.isArray(descriptor)) {
+    throw new Error("Descriptor facial ausente ou inválido.");
+  }
+
+  if (descriptor.length !== 128) {
+    throw new Error("Descriptor facial inválido. Esperado array com 128 posições.");
+  }
+
+  const parsed = descriptor.map((item) => Number(item));
+
+  if (parsed.some((n) => Number.isNaN(n))) {
+    throw new Error("Descriptor facial contém valores inválidos.");
+  }
+
+  return parsed;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ ok: false, error: "Método não permitido." });
@@ -15,30 +33,17 @@ export default async function handler(req, res) {
 
     const decoded = await adminAuth.verifyIdToken(token);
     const uid = decoded.uid;
+    const email = decoded.email || "";
 
     const { descriptor } = req.body || {};
-
-    if (!Array.isArray(descriptor) || descriptor.length !== 128) {
-      return res.status(400).json({
-        ok: false,
-        error: "Descriptor facial inválido. Esperado array com 128 posições."
-      });
-    }
-
-    const descriptorNumerico = descriptor.map((item) => Number(item));
-
-    if (descriptorNumerico.some((n) => Number.isNaN(n))) {
-      return res.status(400).json({
-        ok: false,
-        error: "Descriptor facial contém valores inválidos."
-      });
-    }
+    const faceDescriptor = toNumericDescriptor(descriptor);
 
     await adminDb.collection("usuarios").doc(uid).set(
       {
         uid,
         usuarioId: uid,
-        faceDescriptor: descriptorNumerico,
+        email,
+        faceDescriptor,
         faceLoginEnabled: true,
         faceRegisteredAt: new Date().toISOString(),
         atualizadoEm: new Date().toISOString()
