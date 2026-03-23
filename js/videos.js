@@ -1,34 +1,15 @@
-import { auth, db } from "./firebase-config.js";
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  increment
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-import {
-  buscarTodosVideos,
-  buscarVideoPorId,
-  buscarRecomendacoesPorCategoria
-} from "./firebase-service.js";
-
-import {
-  registrarVisualizacao,
-  atualizarTempoVisualizacao
-} from "./historico.js";
-
-import {
-  adicionarFavorito,
-  removerFavorito,
-  favoritado
-} from "./favoritos.js";
+import { db } from "./firebase-config.js";
+import { doc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { buscarTodosVideos, buscarVideoPorId, buscarRecomendacoesPorCategoria } from "./firebase-service.js";
+import { registrarVisualizacao, atualizarTempoVisualizacao } from "./historico.js";
+import { adicionarFavorito, removerFavorito, favoritado } from "./favoritos.js";
 
 const topVideosContainer = document.getElementById("topVideos");
 const topSemanalContainer = document.getElementById("topSemanal");
 const emAltaContainer = document.getElementById("emAlta");
 const categoriaTecnologiaContainer = document.getElementById("categoriaTecnologia");
 
-const videoPlayer = document.getElementById("videoPlayer") || document.getElementById("playerBrasflix");
+const videoPlayer = document.getElementById("playerBrasflix");
 const videoTitulo = document.getElementById("videoTitulo");
 const videoDescricao = document.getElementById("videoDescricao");
 const videoCategoria = document.getElementById("videoCategoria");
@@ -43,10 +24,10 @@ const analyticsRetencao = document.getElementById("analyticsRetencao");
 
 const recomendacoesVideo = document.getElementById("recomendacoesVideo");
 const estadoVazioRecomendacoes = document.getElementById("estadoVazioRecomendacoes");
-
 const botoesAcaoVideo = document.querySelectorAll(".acoes-video .btn-acao");
 
 let videoAtual = null;
+let curtirTravado = false;
 
 function escaparHtml(texto = "") {
   return String(texto)
@@ -55,6 +36,18 @@ function escaparHtml(texto = "") {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function normalizarVideo(video = {}) {
+  return {
+    ...video,
+    id: video.id || video.docId || "",
+    docId: video.docId || "",
+    thumb: video.thumbnailSecureUrl || video.thumbnailUrl || video.thumbnail || video.capa || "imagens/logo.png",
+    urlFinal: video.videoSecureUrl || video.videoUrl || video.urlVideo || video.src || "",
+    duracaoExibicao: video.duracao || formatarDuracao(video.duracaoSegundos || 0),
+    publicadoEmFinal: video.publicadoEm || video.createdAt || video.criadoEm || null
+  };
 }
 
 function formatarData(valor) {
@@ -66,14 +59,11 @@ function formatarData(valor) {
 
 function formatarDuracao(segundos = 0) {
   const total = Number(segundos || 0);
+  if (!total) return "—";
   const horas = Math.floor(total / 3600);
   const minutos = Math.floor((total % 3600) / 60);
   const segs = Math.floor(total % 60);
-
-  if (horas > 0) {
-    return `${horas}h ${String(minutos).padStart(2, "0")}min`;
-  }
-
+  if (horas > 0) return `${horas}h ${String(minutos).padStart(2, "0")}min`;
   return `${minutos}min ${String(segs).padStart(2, "0")}s`;
 }
 
@@ -83,11 +73,10 @@ function abrirVideo(video) {
 }
 
 function criarMarkupPreview(video) {
-  if (!video?.previewUrl) return "";
-
+  if (!video?.urlFinal) return "";
   return `
     <video muted loop playsinline preload="none" aria-hidden="true">
-      <source src="${escaparHtml(video.previewUrl)}" type="video/mp4">
+      <source src="${escaparHtml(video.urlFinal)}" type="video/mp4">
     </video>
   `;
 }
@@ -95,6 +84,8 @@ function criarMarkupPreview(video) {
 function configurarHoverPreview(card) {
   const videoPreview = card.querySelector("video");
   if (!videoPreview) return;
+
+  card.classList.add("has-preview");
 
   card.addEventListener("mouseenter", async () => {
     try {
@@ -111,7 +102,8 @@ function configurarHoverPreview(card) {
   });
 }
 
-function criarCardNormal(video) {
+function criarCardNormal(videoOriginal) {
+  const video = normalizarVideo(videoOriginal);
   const card = document.createElement("div");
   card.classList.add("card");
   card.tabIndex = 0;
@@ -120,7 +112,7 @@ function criarCardNormal(video) {
 
   card.innerHTML = `
     <div class="card-media">
-      <img src="${escaparHtml(video.thumbnail || video.capa || "imagens/logo.png")}" alt="${escaparHtml(video.titulo || "Vídeo")}">
+      <img src="${escaparHtml(video.thumb)}" alt="${escaparHtml(video.titulo || "Vídeo")}">
       ${criarMarkupPreview(video)}
       <div class="card-overlay">
         <h3>${escaparHtml(video.titulo || "Sem título")}</h3>
@@ -141,7 +133,8 @@ function criarCardNormal(video) {
   return card;
 }
 
-function criarCardRanking(video, posicao) {
+function criarCardRanking(videoOriginal, posicao) {
+  const video = normalizarVideo(videoOriginal);
   const card = document.createElement("div");
   card.classList.add("card-ranking");
   card.tabIndex = 0;
@@ -151,7 +144,7 @@ function criarCardRanking(video, posicao) {
   card.innerHTML = `
     <span class="ranking-numero">${posicao}</span>
     <div class="card-ranking-thumb">
-      <img src="${escaparHtml(video.thumbnail || video.capa || "imagens/logo.png")}" alt="${escaparHtml(video.titulo || "Vídeo")}">
+      <img src="${escaparHtml(video.thumb)}" alt="${escaparHtml(video.titulo || "Vídeo")}">
       ${criarMarkupPreview(video)}
       <div class="card-ranking-overlay">
         <h3>${escaparHtml(video.titulo || "Sem título")}</h3>
@@ -174,18 +167,11 @@ function criarCardRanking(video, posicao) {
 
 function renderizarLista(container, lista, tipo = "normal") {
   if (!container) return;
-
   container.innerHTML = "";
-
-  if (!Array.isArray(lista) || !lista.length) {
-    return;
-  }
+  if (!Array.isArray(lista) || !lista.length) return;
 
   lista.forEach((video, index) => {
-    const card = tipo === "ranking"
-      ? criarCardRanking(video, index + 1)
-      : criarCardNormal(video);
-
+    const card = tipo === "ranking" ? criarCardRanking(video, index + 1) : criarCardNormal(video);
     container.appendChild(card);
   });
 }
@@ -194,11 +180,11 @@ async function carregarHome() {
   if (!topVideosContainer && !emAltaContainer && !categoriaTecnologiaContainer) return;
 
   try {
-    const todos = await buscarTodosVideos();
+    const todos = (await buscarTodosVideos()).map(normalizarVideo).filter((v) => v.ativo !== false && v.id);
 
-    const topVideos = todos.filter((v) => v.topVideos || v.topSemanal).slice(0, 8);
+    const topVideos = todos.filter((v) => v.topVideos || v.topSemanal || v.destaque).slice(0, 8);
     const topSemanal = todos.filter((v) => v.topSemanal).slice(0, 8);
-    const emAlta = todos.filter((v) => v.emAlta).slice(0, 12);
+    const emAlta = todos.filter((v) => v.emAlta || v.lancamento).slice(0, 12);
     const tecnologia = todos.filter((v) => (v.categoria || "").toLowerCase() === "tecnologia").slice(0, 12);
 
     renderizarLista(topVideosContainer, topVideos, "ranking");
@@ -212,11 +198,8 @@ async function carregarHome() {
 
 async function incrementarViews(docId) {
   if (!docId) return;
-
   try {
-    await updateDoc(doc(db, "videos", docId), {
-      views: increment(1)
-    });
+    await updateDoc(doc(db, "videos", docId), { views: increment(1) });
   } catch (error) {
     console.error("[Vídeos] Erro ao incrementar views:", error);
   }
@@ -229,52 +212,53 @@ async function configurarBotoesAcao() {
   const btnFavoritar = botoesAcaoVideo[1];
 
   if (btnCurtir) {
+    btnCurtir.id = "btnCurtirVideo";
+    btnCurtir.setAttribute("data-like-video", "true");
     btnCurtir.addEventListener("click", async () => {
-      if (!videoAtual?.docId) return;
-
+      if (!videoAtual?.docId || curtirTravado) return;
+      curtirTravado = true;
       try {
-        await updateDoc(doc(db, "videos", videoAtual.docId), {
-          likes: increment(1)
-        });
-
-        const likesAtual = Number(videoAtual.likes || 0) + 1;
-        videoAtual.likes = likesAtual;
-
-        if (analyticsLikes) analyticsLikes.textContent = String(likesAtual);
-        btnCurtir.textContent = "👍 Curtido";
+        await updateDoc(doc(db, "videos", videoAtual.docId), { likes: increment(1) });
+        videoAtual.likes = Number(videoAtual.likes || 0) + 1;
+        if (analyticsLikes) analyticsLikes.textContent = String(videoAtual.likes);
+        btnCurtir.textContent = `👍 Curtido (${videoAtual.likes})`;
       } catch (error) {
         console.error("[Vídeos] Erro ao curtir vídeo:", error);
+      } finally {
+        window.setTimeout(() => {
+          curtirTravado = false;
+        }, 1200);
       }
-    });
+    }, { once: false });
   }
 
   if (btnFavoritar) {
     const jaFavoritado = await favoritado(videoAtual.id);
-
     btnFavoritar.textContent = jaFavoritado ? "⭐ Favoritado" : "⭐ Favoritar";
 
     btnFavoritar.addEventListener("click", async () => {
       const ativo = await favoritado(videoAtual.id);
-
       if (ativo) {
         await removerFavorito(videoAtual.id);
+        videoAtual.favoritos = Math.max(0, Number(videoAtual.favoritos || 0) - 1);
         btnFavoritar.textContent = "⭐ Favoritar";
       } else {
         await adicionarFavorito(videoAtual);
+        videoAtual.favoritos = Number(videoAtual.favoritos || 0) + 1;
         btnFavoritar.textContent = "⭐ Favoritado";
       }
+      if (analyticsFavoritos) analyticsFavoritos.textContent = String(videoAtual.favoritos || 0);
     });
   }
 }
 
 async function carregarRecomendacoes(video) {
   if (!recomendacoesVideo) return;
-
   recomendacoesVideo.innerHTML = "";
 
   try {
-    const lista = await buscarRecomendacoesPorCategoria(video.categoria || "");
-    const filtrados = lista.filter((item) => item.id !== video.id).slice(0, 10);
+    const lista = (await buscarRecomendacoesPorCategoria(video.categoria || "")).map(normalizarVideo);
+    const filtrados = lista.filter((item) => item.id !== video.id && item.ativo !== false).slice(0, 10);
 
     if (!filtrados.length) {
       if (estadoVazioRecomendacoes) estadoVazioRecomendacoes.style.display = "flex";
@@ -294,13 +278,11 @@ async function carregarPaginaVideo() {
 
   const params = new URLSearchParams(window.location.search);
   const id = params.get("id");
-
   if (!id) return;
 
   try {
-    const video = await buscarVideoPorId(id);
-
-    if (!video) {
+    const video = normalizarVideo(await buscarVideoPorId(id));
+    if (!video?.id) {
       videoTitulo.textContent = "Vídeo não encontrado";
       return;
     }
@@ -310,20 +292,23 @@ async function carregarPaginaVideo() {
     if (videoCategoria) videoCategoria.textContent = video.categoria || "Sem categoria";
     if (videoTitulo) videoTitulo.textContent = video.titulo || "Sem título";
     if (videoDescricao) videoDescricao.textContent = video.descricao || "Sem descrição.";
-    if (videoDuracao) videoDuracao.textContent = formatarDuracao(video.duracaoSegundos || video.duracao || 0);
-    if (videoPublicacao) videoPublicacao.textContent = formatarData(video.publicadoEm || video.createdAt || video.criadoEm);
+    if (videoDuracao) videoDuracao.textContent = video.duracaoExibicao || "—";
+    if (videoPublicacao) videoPublicacao.textContent = formatarData(video.publicadoEmFinal);
     if (videoViews) videoViews.textContent = String(video.views || 0);
 
     if (analyticsViews) analyticsViews.textContent = String(video.views || 0);
     if (analyticsLikes) analyticsLikes.textContent = String(video.likes || 0);
-    if (analyticsFavoritos) analyticsFavoritos.textContent = "—";
+    if (analyticsFavoritos) analyticsFavoritos.textContent = String(video.favoritos || 0);
     if (analyticsRetencao) analyticsRetencao.textContent = "—";
 
     const source = videoPlayer.querySelector("source");
-    if (source && (video.urlVideo || video.videoUrl || video.src)) {
-      source.src = video.urlVideo || video.videoUrl || video.src;
+    if (source && video.urlFinal) {
+      source.src = video.urlFinal;
+      videoPlayer.poster = video.thumb || "imagens/fundo.png";
       videoPlayer.load();
     }
+
+    document.title = `BRASFLIX - ${video.titulo || "Vídeo"}`;
 
     await incrementarViews(video.docId);
     await registrarVisualizacao(video);
