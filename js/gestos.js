@@ -8,10 +8,11 @@ const Gestos = {
     this.mapear();
 
     if (!this.elementos.widget) {
-      console.warn("[Gestos] Widget de gestos não encontrado no HTML.");
+      console.warn("[Gestos] Widget real não encontrado no HTML. Nenhum fallback será criado.");
       return;
     }
 
+    this.removerFallbackAntigo();
     this.bind();
     this.aplicarEstadoInicial();
   },
@@ -31,6 +32,25 @@ const Gestos = {
       fecharOverlay: document.getElementById("fecharTutorialOverlay"),
       tutorialStatus: document.getElementById("tutorialStatusGesto")
     };
+  },
+
+  removerFallbackAntigo() {
+    const fallbackIds = ["gestosBox", "gestosVideo", "gestosStatus", "gestosIniciar", "gestosParar"];
+    fallbackIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        const parent = el.closest("#gestosBox") || el;
+        if (parent && parent.id === "gestosBox") {
+          parent.remove();
+        } else if (el.id === id) {
+          el.remove();
+        }
+      }
+    });
+
+    document.querySelectorAll(".gestos-box, .gestos-card, .gestos-video-wrap, .gestos-actions").forEach((el) => {
+      el.remove();
+    });
   },
 
   bind() {
@@ -73,6 +93,7 @@ const Gestos = {
   aplicarEstadoInicial() {
     this.setTexto("Gestos aguardando inicialização.");
     this.elementos.widget?.classList.add("minimizado");
+    this.elementos.indicador?.classList.add("oculto");
   },
 
   setTexto(texto) {
