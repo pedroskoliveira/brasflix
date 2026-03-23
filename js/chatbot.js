@@ -1,39 +1,24 @@
-import { AIEngine } from "./ai-engine.js";
+import { PedriaCore } from "./pedria-core.js";
 
 const TOPICOS = [
   { label: "Vídeos", prompt: "Quais vídeos ou conteúdos você me recomenda agora na BRASFLIX?" },
   { label: "Perfil", prompt: "Como eu vejo e edito meu perfil na BRASFLIX?" },
   { label: "Pessoas", prompt: "Como eu encontro pessoas e converso com outros usuários na BRASFLIX?" },
   { label: "Analytics", prompt: "Explique o que aparece na página de analytics da BRASFLIX." },
-  { label: "Admin", prompt: "Como funciona o acesso de administrador na BRASFLIX?" }
+  { label: "Hora", prompt: "Que horas são agora?" },
+  { label: "Clima", prompt: "Como está o tempo agora?" }
 ];
 
-const BASE_CONHECIMENTO_BRASFLIX = `
-A BRASFLIX é uma plataforma com:
-- página inicial com vídeos e navegação;
-- login por email/senha, Google e login facial;
-- perfil de usuário;
-- favoritos;
-- histórico de visualização;
-- analytics;
-- chat entre usuários;
-- página de usuários/comunidade;
-- área admin protegida por role admin;
-- setup do primeiro admin em setup-admin.html;
-- reconhecimento facial via Face API com modelos em /models;
-- backend serverless em /api.
-
-Regras de resposta:
-- Responda SOMENTE sobre a BRASFLIX e suas funções.
-- Não invente páginas, botões ou recursos que não foram citados acima.
-- Se a pergunta estiver fora da BRASFLIX, diga educadamente que você é focada na plataforma. Porém, pode dar sugestões de filmes e vídeos externos.
-- Você poderá dar sugestões de vídeos baseados nos dados do usuário.
-- Você poderá responder em tempo real de acordo com as análises geradas na plataforma do usuário.
-- Se não tiver certeza, diga claramente que não consegue confirmar pelo contexto atual.
-- Seja objetiva, clara e útil.
-- Responda em português do Brasil.
-- Evite linguagem exagerada, personagem excessivo ou texto promocional.
-`;
+function paginaAtual() {
+  const path = window.location.pathname.toLowerCase();
+  if (path.includes("perfil")) return "perfil";
+  if (path.includes("usuarios")) return "usuarios";
+  if (path.includes("analytics")) return "analytics";
+  if (path.includes("face")) return "face";
+  if (path.includes("video")) return "video";
+  if (path.includes("login")) return "login";
+  return "index";
+}
 
 const ChatbotBRASFLIX = {
   elementos: {},
@@ -127,7 +112,11 @@ const ChatbotBRASFLIX = {
   inserirSaudacao() {
     if (this.saudacaoInserida || !this.elementos.mensagens) return;
     this.saudacaoInserida = true;
-    this.adicionarMensagem("bot", "Olá! Eu sou a PedrIA. Posso ajudar com vídeos, perfil, pessoas, analytics, login facial e administração da BRASFLIX.", { scroll: false });
+    this.adicionarMensagem(
+      "bot",
+      "Olá! Eu sou a PedrIA. Posso ajudar com a BRASFLIX, vídeos, perfil, pessoas, analytics, admin, data, hora e previsão do tempo.",
+      { scroll: false }
+    );
   },
 
   adicionarMensagem(tipo, texto, options = {}) {
@@ -136,7 +125,6 @@ const ChatbotBRASFLIX = {
     item.className = `chatbot-message chatbot-message-${tipo}`;
     item.textContent = texto;
     this.elementos.mensagens.appendChild(item);
-
     if (options.scroll !== false) {
       this.elementos.mensagens.scrollTop = this.elementos.mensagens.scrollHeight;
     }
@@ -146,71 +134,21 @@ const ChatbotBRASFLIX = {
     this.elementos.mensagens?.querySelectorAll(".chatbot-message-system").forEach((el) => el.remove());
   },
 
-  respostaLocalRapida(texto) {
-    const t = String(texto || "").trim().toLowerCase();
-
-    if (["oi", "ola", "olá", "bom dia", "boa tarde", "boa noite"].includes(t)) {
-      return "Oi! Posso ajudar com vídeos, perfil, chat entre usuários, analytics, admin e login facial da BRASFLIX.";
-    }
-
-    if (t.includes("o que você consegue fazer") || t.includes("o que voce consegue fazer") || t.includes("o que você faz")) {
-      return "Posso te ajudar com funções da BRASFLIX, como vídeos, perfil, favoritos, chat entre usuários, analytics, login facial e área admin.";
-    }
-
-    if (t.includes("como acessar admin") || t.includes("como criar admin")) {
-      return "Faça login, abra setup-admin.html, informe o SETUP_ADMIN_SECRET e depois acesse admin/dashboard.html.";
-    }
-
-    if (t.includes("como postar video") || t.includes("como postar vídeo")) {
-      return "Depois de virar admin, entre em admin/videos.html para postar e gerenciar vídeos.";
-    }
-
-    return "";
-  },
-
   async enviarMensagem() {
     const texto = this.elementos.input?.value?.trim();
     if (!texto) return;
 
     this.adicionarMensagem("user", texto);
     this.elementos.input.value = "";
-
-    const local = this.respostaLocalRapida(texto);
-    if (local) {
-      this.adicionarMensagem("bot", local);
-      return;
-    }
-
     this.adicionarMensagem("system", "Pensando...");
 
-    const resposta = await AIEngine.gerar({
-      prompt: texto,
-      provider: "gemini",
-      incluirContextoUsuario: true,
-      contextoExtra: [
-        {
-          role: "system",
-          content: BASE_CONHECIMENTO_BRASFLIX
-        }
-      ],
-      system: `
-Você é a PedrIA da BRASFLIX.
-Responda em português do Brasil.
-Foque no sistema BRASFLIX.
-Não invente recursos.
-Se não souber, diga claramente.
-Seja objetiva.
-      `.trim()
+    const resposta = await PedriaCore.responder(texto, {
+      pagina: paginaAtual(),
+      origem: "chatbot"
     });
 
     this.removerPensando();
-
-    if (!resposta?.sucesso) {
-      this.adicionarMensagem("bot", resposta?.erro || "Não consegui responder agora. Tente novamente em instantes.");
-      return;
-    }
-
-    this.adicionarMensagem("bot", resposta.texto || "Sem resposta no momento.");
+    this.adicionarMensagem("bot", resposta?.resposta || "Não consegui responder agora. Tente novamente em instantes.");
   }
 };
 
