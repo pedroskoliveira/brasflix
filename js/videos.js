@@ -9,7 +9,7 @@ const topSemanalContainer = document.getElementById("topSemanal");
 const emAltaContainer = document.getElementById("emAlta");
 const categoriaTecnologiaContainer = document.getElementById("categoriaTecnologia");
 
-const videoPlayer = document.getElementById("playerBrasflix");
+const videoPlayer = document.getElementById("videoPlayer") || document.getElementById("playerBrasflix");
 const videoTitulo = document.getElementById("videoTitulo");
 const videoDescricao = document.getElementById("videoDescricao");
 const videoCategoria = document.getElementById("videoCategoria");
@@ -38,18 +38,6 @@ function escaparHtml(texto = "") {
     .replaceAll("'", "&#39;");
 }
 
-function normalizarVideo(video = {}) {
-  return {
-    ...video,
-    id: video.id || video.docId || "",
-    docId: video.docId || "",
-    thumb: video.thumbnailSecureUrl || video.thumbnailUrl || video.thumbnail || video.capa || "imagens/logo.png",
-    urlFinal: video.videoSecureUrl || video.videoUrl || video.urlVideo || video.src || "",
-    duracaoExibicao: video.duracao || formatarDuracao(video.duracaoSegundos || 0),
-    publicadoEmFinal: video.publicadoEm || video.createdAt || video.criadoEm || null
-  };
-}
-
 function formatarData(valor) {
   if (!valor) return "—";
   const data = valor.toDate ? valor.toDate() : new Date(valor);
@@ -63,8 +51,33 @@ function formatarDuracao(segundos = 0) {
   const horas = Math.floor(total / 3600);
   const minutos = Math.floor((total % 3600) / 60);
   const segs = Math.floor(total % 60);
+
   if (horas > 0) return `${horas}h ${String(minutos).padStart(2, "0")}min`;
   return `${minutos}min ${String(segs).padStart(2, "0")}s`;
+}
+
+function normalizarVideo(video = {}) {
+  const thumb = video.thumbnailSecureUrl || video.thumbnailUrl || video.thumbnail || video.capa || "imagens/logo.png";
+  const urlFinal = video.videoSecureUrl || video.videoUrl || video.urlVideo || video.src || "";
+  const previewUrl = video.previewUrl || urlFinal;
+
+  let duracaoExibicao = "—";
+  if (typeof video.duracao === "string" && video.duracao.trim()) {
+    duracaoExibicao = video.duracao.trim();
+  } else if (typeof video.duracao === "number" || typeof video.duracaoSegundos === "number") {
+    duracaoExibicao = formatarDuracao(video.duracaoSegundos || video.duracao || 0);
+  }
+
+  return {
+    ...video,
+    id: video.id || video.docId || "",
+    docId: video.docId || video.id || "",
+    thumb,
+    urlFinal,
+    previewUrl,
+    duracaoExibicao,
+    publicadoEmFinal: video.publicadoEm || video.createdAt || video.criadoEm || null
+  };
 }
 
 function abrirVideo(video) {
@@ -73,10 +86,11 @@ function abrirVideo(video) {
 }
 
 function criarMarkupPreview(video) {
-  if (!video?.urlFinal) return "";
+  if (!video?.previewUrl) return "";
+
   return `
     <video muted loop playsinline preload="none" aria-hidden="true">
-      <source src="${escaparHtml(video.urlFinal)}" type="video/mp4">
+      <source src="${escaparHtml(video.previewUrl)}" type="video/mp4">
     </video>
   `;
 }
@@ -84,8 +98,6 @@ function criarMarkupPreview(video) {
 function configurarHoverPreview(card) {
   const videoPreview = card.querySelector("video");
   if (!videoPreview) return;
-
-  card.classList.add("has-preview");
 
   card.addEventListener("mouseenter", async () => {
     try {
@@ -211,9 +223,8 @@ async function configurarBotoesAcao() {
   const btnCurtir = botoesAcaoVideo[0];
   const btnFavoritar = botoesAcaoVideo[1];
 
-  if (btnCurtir) {
-    btnCurtir.id = "btnCurtirVideo";
-    btnCurtir.setAttribute("data-like-video", "true");
+  if (btnCurtir && !btnCurtir.dataset.bindLike) {
+    btnCurtir.dataset.bindLike = "1";
     btnCurtir.addEventListener("click", async () => {
       if (!videoAtual?.docId || curtirTravado) return;
       curtirTravado = true;
@@ -225,14 +236,13 @@ async function configurarBotoesAcao() {
       } catch (error) {
         console.error("[Vídeos] Erro ao curtir vídeo:", error);
       } finally {
-        window.setTimeout(() => {
-          curtirTravado = false;
-        }, 1200);
+        setTimeout(() => { curtirTravado = false; }, 1200);
       }
-    }, { once: false });
+    });
   }
 
-  if (btnFavoritar) {
+  if (btnFavoritar && !btnFavoritar.dataset.bindFav) {
+    btnFavoritar.dataset.bindFav = "1";
     const jaFavoritado = await favoritado(videoAtual.id);
     btnFavoritar.textContent = jaFavoritado ? "⭐ Favoritado" : "⭐ Favoritar";
 
@@ -282,6 +292,7 @@ async function carregarPaginaVideo() {
 
   try {
     const video = normalizarVideo(await buscarVideoPorId(id));
+
     if (!video?.id) {
       videoTitulo.textContent = "Vídeo não encontrado";
       return;
@@ -306,6 +317,9 @@ async function carregarPaginaVideo() {
       source.src = video.urlFinal;
       videoPlayer.poster = video.thumb || "imagens/fundo.png";
       videoPlayer.load();
+      videoPlayer.muted = false;
+    } else if (videoTitulo) {
+      videoTitulo.textContent = `${video.titulo || "Vídeo"} (arquivo de vídeo ausente)`;
     }
 
     document.title = `BRASFLIX - ${video.titulo || "Vídeo"}`;
