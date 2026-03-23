@@ -22,9 +22,7 @@ function currentPageKey() {
 }
 
 function assetPath(relativePath = "") {
-  const path = location.pathname.toLowerCase();
-  const prefix = path.includes("/admin/") ? "../" : "";
-  return `${prefix}${relativePath.replace(/^\//, "")}`;
+  return new URL(`../${relativePath.replace(/^\//, "")}`, import.meta.url).href;
 }
 
 function pagePath(relativePath = "") {
