@@ -1,4 +1,4 @@
-import { adminAuth, adminDb } from "./_lib/firebase-admin.js";
+import { getAdminServices } from "./_lib/firebase-admin.js";
 
 function extractBearerToken(req) {
   const authHeader = req.headers.authorization || "";
@@ -11,8 +11,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const token = extractBearerToken(req);
+    const { adminAuth, adminDb } = getAdminServices();
 
+    const token = extractBearerToken(req);
     if (!token) {
       return res.status(401).json({ ok: false, error: "Token ausente." });
     }
