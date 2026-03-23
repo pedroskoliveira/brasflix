@@ -1,42 +1,40 @@
-import admin from "firebase-admin";
+import { initializeApp, cert, getApps } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
+
+function getRequiredEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Variável de ambiente ausente: ${name}`);
+  }
+  return value;
+}
 
 function getPrivateKey() {
-  const key = process.env.FIREBASE_ADMIN_PRIVATE_KEY || "";
-  return key.replace(/\\n/g, "\n");
+  const raw = getRequiredEnv("FIREBASE_ADMIN_PRIVATE_KEY");
+  return raw.replace(/\\n/g, "\n");
 }
 
-function validateEnv() {
-  const required = [
-    "FIREBASE_ADMIN_PROJECT_ID",
-    "FIREBASE_ADMIN_CLIENT_EMAIL",
-    "FIREBASE_ADMIN_PRIVATE_KEY"
-  ];
-
-  const missing = required.filter((name) => !process.env[name]);
-
-  if (missing.length > 0) {
-    throw new Error(
-      `[Firebase Admin] Variáveis ausentes no ambiente: ${missing.join(", ")}`
-    );
+function createAdminApp() {
+  if (getApps().length) {
+    return getApps()[0];
   }
-}
 
-validateEnv();
+  const projectId = getRequiredEnv("FIREBASE_ADMIN_PROJECT_ID");
+  const clientEmail = getRequiredEnv("FIREBASE_ADMIN_CLIENT_EMAIL");
+  const privateKey = getPrivateKey();
 
-if (!admin.apps.length) {
-  const config = {
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-      privateKey: getPrivateKey()
+  return initializeApp({
+    credential: cert({
+      projectId,
+      clientEmail,
+      privateKey
     })
-  };
-
-  admin.initializeApp(config);
-
-  console.log("[Firebase Admin] Inicializado com sucesso");
+  });
 }
 
-const adminAuth = admin.auth();
-const adminDb = admin.firestore();
-export { admin, adminAuth, adminDb }; 
+const adminApp = createAdminApp();
+const adminAuth = getAuth(adminApp);
+const adminDb = getFirestore(adminApp);
+
+export { adminApp, adminAuth, adminDb };
