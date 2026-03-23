@@ -2,17 +2,16 @@ const Gestos = {
   elementos: {},
   stream: null,
   ativo: false,
-  intervaloMock: null,
+  intervaloStatus: null,
 
   iniciar() {
     this.mapear();
 
-    if (!this.elementos.widget) {
-      console.warn("[Gestos] Widget real não encontrado no HTML. Nenhum fallback será criado.");
+    if (!this.elementos.widget || !this.elementos.indicador) {
+      console.warn("[Gestos] Estrutura principal não encontrada no HTML.");
       return;
     }
 
-    this.removerFallbackAntigo();
     this.bind();
     this.aplicarEstadoInicial();
   },
@@ -21,6 +20,7 @@ const Gestos = {
     this.elementos = {
       widget: document.getElementById("gestosWidget"),
       indicador: document.getElementById("gestosIndicador"),
+      indicadorTexto: document.querySelector("#gestosIndicador .gestos-indicador-texto"),
       minimizar: document.getElementById("gestosMinimizar"),
       ativar: document.getElementById("ativarGestos"),
       desativar: document.getElementById("desativarGestos"),
@@ -32,25 +32,6 @@ const Gestos = {
       fecharOverlay: document.getElementById("fecharTutorialOverlay"),
       tutorialStatus: document.getElementById("tutorialStatusGesto")
     };
-  },
-
-  removerFallbackAntigo() {
-    const fallbackIds = ["gestosBox", "gestosVideo", "gestosStatus", "gestosIniciar", "gestosParar"];
-    fallbackIds.forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) {
-        const parent = el.closest("#gestosBox") || el;
-        if (parent && parent.id === "gestosBox") {
-          parent.remove();
-        } else if (el.id === id) {
-          el.remove();
-        }
-      }
-    });
-
-    document.querySelectorAll(".gestos-box, .gestos-card, .gestos-video-wrap, .gestos-actions").forEach((el) => {
-      el.remove();
-    });
   },
 
   bind() {
@@ -72,49 +53,39 @@ const Gestos = {
 
     this.elementos.desativar?.addEventListener("click", () => {
       this.desativarGestos();
-      if (this.elementos.ativar) {
-        this.elementos.ativar.checked = false;
-      }
+      if (this.elementos.ativar) this.elementos.ativar.checked = false;
     });
 
-    this.elementos.abrirTutorial?.addEventListener("click", () => {
-      this.abrirTutorial();
-    });
-
-    this.elementos.fecharTutorial?.addEventListener("click", () => {
-      this.fecharTutorial();
-    });
-
-    this.elementos.fecharOverlay?.addEventListener("click", () => {
-      this.fecharTutorial();
-    });
+    this.elementos.abrirTutorial?.addEventListener("click", () => this.abrirTutorial());
+    this.elementos.fecharTutorial?.addEventListener("click", () => this.fecharTutorial());
+    this.elementos.fecharOverlay?.addEventListener("click", () => this.fecharTutorial());
   },
 
   aplicarEstadoInicial() {
-    this.setTexto("Gestos aguardando inicialização.");
+    this.definirIndicador("Abrir gestos");
+    this.setTexto("O painel de gestos está disponível. Clique em “Abrir gestos” e ative a câmera.");
     this.elementos.widget?.classList.add("minimizado");
-    this.elementos.indicador?.classList.add("oculto");
+    this.elementos.indicador?.classList.remove("oculto");
+  },
+
+  definirIndicador(texto) {
+    if (this.elementos.indicadorTexto) {
+      this.elementos.indicadorTexto.textContent = texto;
+    }
   },
 
   setTexto(texto) {
-    if (this.elementos.gestoDetectado) {
-      this.elementos.gestoDetectado.textContent = texto;
-    }
-
-    if (this.elementos.tutorialStatus) {
-      this.elementos.tutorialStatus.textContent = texto;
-    }
+    if (this.elementos.gestoDetectado) this.elementos.gestoDetectado.textContent = texto;
+    if (this.elementos.tutorialStatus) this.elementos.tutorialStatus.textContent = texto;
   },
 
   async ativarGestos() {
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Seu navegador não suporta câmera para gestos.");
+        throw new Error("Seu navegador não suporta uso da câmera para gestos.");
       }
 
-      if (this.stream) {
-        this.stream.getTracks().forEach((track) => track.stop());
-      }
+      this.pararStream();
 
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -127,51 +98,72 @@ const Gestos = {
 
       if (this.elementos.webcam) {
         this.elementos.webcam.srcObject = this.stream;
-        await this.elementos.webcam.play().catch(() => {});
+        await this.elementos.webcam.play();
       }
 
       this.ativo = true;
-      this.setTexto("Gestos ativos. Câmera iniciada com sucesso.");
+      this.definirIndicador("Gestos prontos");
+      this.setTexto("Gestos ativados. Câmera iniciada com sucesso. Você já pode testar o tutorial e preparar os comandos.");
       this.elementos.indicador?.classList.remove("oculto");
-
-      if (this.intervaloMock) {
-        clearInterval(this.intervaloMock);
-      }
-
-      this.intervaloMock = setInterval(() => {
-        if (!this.ativo) return;
-        this.setTexto("Gestos ativos. Estrutura pronta para reconhecimento.");
-      }, 3000);
+      this.elementos.widget?.classList.remove("minimizado");
+      this.iniciarLoopStatus();
     } catch (error) {
       console.error("[Gestos] Erro ao ativar:", error);
-      this.setTexto(error.message || "Erro ao ativar gestos.");
       this.ativo = false;
+      this.definirIndicador("Abrir gestos");
+      this.setTexto(error?.message || "Não foi possível ativar os gestos.");
     }
   },
 
-  desativarGestos() {
-    if (this.intervaloMock) {
-      clearInterval(this.intervaloMock);
-      this.intervaloMock = null;
-    }
+  iniciarLoopStatus() {
+    if (this.intervaloStatus) clearInterval(this.intervaloStatus);
 
+    const mensagens = [
+      "Gestos ativos. A câmera está pronta para capturar movimentos.",
+      "Painel de gestos ativo. Abra o tutorial para testar a webcam ao vivo.",
+      "Gestos ligados. Verifique a posição da mão e a iluminação do ambiente."
+    ];
+
+    let indice = 0;
+    this.intervaloStatus = window.setInterval(() => {
+      if (!this.ativo) return;
+      indice = (indice + 1) % mensagens.length;
+      this.setTexto(mensagens[indice]);
+    }, 3500);
+  },
+
+  pararStream() {
     if (this.stream) {
       this.stream.getTracks().forEach((track) => track.stop());
       this.stream = null;
     }
 
     if (this.elementos.webcam) {
+      this.elementos.webcam.pause?.();
       this.elementos.webcam.srcObject = null;
     }
+  },
 
+  desativarGestos() {
+    if (this.intervaloStatus) {
+      clearInterval(this.intervaloStatus);
+      this.intervaloStatus = null;
+    }
+
+    this.pararStream();
     this.ativo = false;
-    this.setTexto("Gestos desativados.");
-    this.elementos.indicador?.classList.add("oculto");
+    this.definirIndicador("Abrir gestos");
+    this.setTexto("Gestos desativados. Clique em ativar para ligar a câmera novamente.");
+    this.elementos.indicador?.classList.remove("oculto");
   },
 
   abrirTutorial() {
     this.elementos.modalTutorial?.classList.remove("oculto");
-    this.setTexto("Tutorial aberto. A detecção real pode ser expandida depois.");
+    this.setTexto(
+      this.ativo
+        ? "Tutorial aberto. Use a mão diante da câmera para testar seus gestos."
+        : "Tutorial aberto. Ative os gestos para usar a câmera no teste ao vivo."
+    );
   },
 
   fecharTutorial() {
@@ -179,9 +171,7 @@ const Gestos = {
   }
 };
 
-document.addEventListener("DOMContentLoaded", () => {
-  Gestos.iniciar();
-});
+document.addEventListener("DOMContentLoaded", () => Gestos.iniciar());
 
 window.GestosBRASFLIX = Gestos;
 export { Gestos };
