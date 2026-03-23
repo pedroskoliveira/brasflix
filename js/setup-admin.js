@@ -23,6 +23,19 @@ function setStatus(message, isError = false) {
   statusEl.style.color = isError ? "#ffb4b4" : "#b8f3c9";
 }
 
+async function safeJson(response) {
+  const raw = await response.text();
+
+  try {
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {
+      ok: false,
+      error: raw || "Resposta inválida do servidor."
+    };
+  }
+}
+
 async function verificarStatus() {
   if (!currentUser) {
     setStatus("Faça login antes de verificar seu status.", true);
@@ -71,14 +84,14 @@ async function promoverPrimeiroAdmin() {
       body: JSON.stringify({ secret })
     });
 
-    const data = await response.json();
+    const data = await safeJson(response);
 
     if (!response.ok || !data?.ok) {
       throw new Error(data?.error || "Falha ao promover o primeiro admin.");
     }
 
     setStatus(
-      `Primeiro admin configurado com sucesso.\nUID: ${data.uid}\nRole: ${data.role}\nAgora acesse admin/dashboard.html ou admin-setter.html.`,
+      `Primeiro admin configurado com sucesso.\nUID: ${data.uid}\nRole: ${data.role}\nAgora acesse admin/dashboard.html ou admin/videos.html.`,
       false
     );
   } catch (error) {
