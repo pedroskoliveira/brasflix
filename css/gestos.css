@@ -527,3 +527,26 @@
     }
 }
 
+.gestos-indicador.oculto{display:none !important;}
+.gestos-indicador{min-width:150px;justify-content:center;}
+
+@media (max-width:700px){
+  .gestos-indicador{
+    left:12px;
+    bottom:160px;
+    min-width:auto;
+    padding:0 12px;
+  }
+
+  .gestos-widget{
+    left:12px;
+    bottom:216px;
+  }
+
+  .gestos-panel{
+    max-width:calc(100vw - 24px);
+  }
+}
+
+
+
