@@ -47,6 +47,7 @@ const els = {
     "#formVideo",
     "#videoForm",
     "#formCadastrarVideo",
+    "#form-video-admin",
     "form[data-admin-video-form]"
   ]),
   titulo: qs([
@@ -68,6 +69,12 @@ const els = {
     "select[name='categoria']",
     "input[name='categoria']"
   ]),
+  autor: qs([
+    "#autorVideo",
+    "#videoAutor",
+    "#autor",
+    "input[name='autor']"
+  ]),
   thumbnailUrl: qs([
     "#thumbnailUrl",
     "#videoThumbnail",
@@ -81,12 +88,14 @@ const els = {
   ]),
   thumbnailFile: qs([
     "#thumbnailFile",
+    "#thumbnailVideo",
     "#thumbFile",
     "#uploadThumbnail",
     "input[name='thumbnailFile']"
   ]),
   videoFile: qs([
     "#videoFile",
+    "#arquivoVideo",
     "#uploadVideo",
     "input[name='videoFile']"
   ]),
@@ -95,6 +104,24 @@ const els = {
     "#destaqueVideo",
     "#destaque",
     "input[name='destaque']"
+  ]),
+  lancamento: qs([
+    "#videoLancamento",
+    "#lancamentoVideo",
+    "#lancamento",
+    "input[name='lancamento']"
+  ]),
+  emAlta: qs([
+    "#videoEmAlta",
+    "#emAltaVideo",
+    "#emAlta",
+    "input[name='emAlta']"
+  ]),
+  topSemanal: qs([
+    "#videoTopSemanal",
+    "#topSemanalVideo",
+    "#topSemanal",
+    "input[name='topSemanal']"
   ]),
   ordem: qs([
     "#videoOrdem",
@@ -136,15 +163,19 @@ const els = {
     "[data-admin-videos-status]"
   ]),
   previewThumb: qs([
+    "#previewThumbnailAdmin",
     "#previewThumbnail",
     "#thumbnailPreview",
     "[data-video-thumbnail-preview]"
   ]),
   previewVideo: qs([
+    "#previewArquivoVideoAdmin",
     "#previewVideo",
     "#videoPreview",
     "[data-video-preview]"
-  ])
+  ]),
+  contador: document.getElementById("contadorVideosAdmin"),
+  vazio: document.getElementById("estadoVazioVideosAdmin")
 };
 
 function setStatus(message, isError = false) {
@@ -154,8 +185,9 @@ function setStatus(message, isError = false) {
   }
 
   els.status.textContent = message;
-  els.status.style.color = isError ? "#ff9b9b" : "#d8d8d8";
-  els.status.style.borderColor = isError ? "#5b1c1c" : "#2a2a2a";
+  els.status.style.color = isError ? "#ffb2b2" : "#f3f3f3";
+  els.status.style.borderColor = isError ? "#7a1d1d" : "#2f2f2f";
+  els.status.style.background = isError ? "rgba(120,20,20,.18)" : "rgba(255,255,255,.03)";
 }
 
 function alertar(message) {
@@ -179,6 +211,16 @@ function splitTags(value) {
     .filter(Boolean);
 }
 
+function slugify(text = "") {
+  return limparTexto(text)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+}
+
 function toBool(value) {
   return Boolean(value);
 }
@@ -197,11 +239,11 @@ function getFile(el) {
 
 function resetPreviews() {
   if (els.previewThumb) {
-    els.previewThumb.innerHTML = "";
+    els.previewThumb.innerHTML = `<span class="admin-preview-vazio">A prévia da thumbnail aparecerá aqui.</span>`;
   }
 
   if (els.previewVideo) {
-    els.previewVideo.innerHTML = "";
+    els.previewVideo.innerHTML = `<span class="admin-preview-vazio">A prévia do vídeo aparecerá aqui.</span>`;
   }
 }
 
@@ -209,7 +251,7 @@ function renderThumbPreview(url = "") {
   if (!els.previewThumb) return;
   const safe = limparTexto(url);
   if (!safe) {
-    els.previewThumb.innerHTML = "";
+    resetPreviews();
     return;
   }
 
@@ -220,7 +262,7 @@ function renderVideoPreview(url = "") {
   if (!els.previewVideo) return;
   const safe = limparTexto(url);
   if (!safe) {
-    els.previewVideo.innerHTML = "";
+    els.previewVideo.innerHTML = `<span class="admin-preview-vazio">A prévia do vídeo aparecerá aqui.</span>`;
     return;
   }
 
@@ -254,9 +296,8 @@ function bindPreviewEvents() {
     const file = getFile(els.videoFile);
     if (!file || !els.previewVideo) return;
 
-    const reader = new FileReader();
-    reader.onload = () => renderVideoPreview(reader.result || "");
-    reader.readAsDataURL(file);
+    const objectUrl = URL.createObjectURL(file);
+    renderVideoPreview(objectUrl);
   });
 }
 
@@ -305,28 +346,42 @@ async function uploadToCloudinary(file, resourceType = "image") {
 }
 
 function montarPayloadVideo(base = {}) {
+  const titulo = limparTexto(base.titulo);
+  const categoria = limparTexto(base.categoria);
   const thumbnailUrl = limparTexto(base.thumbnailUrl);
-  const thumbnailSecureUrl =
-    limparTexto(base.thumbnailSecureUrl) || thumbnailUrl || "";
+  const thumbnailSecureUrl = limparTexto(base.thumbnailSecureUrl) || thumbnailUrl || "";
   const videoUrl = limparTexto(base.videoUrl);
-  const videoSecureUrl =
-    limparTexto(base.videoSecureUrl) || videoUrl || "";
+  const videoSecureUrl = limparTexto(base.videoSecureUrl) || videoUrl || "";
+  const idGerado = limparTexto(base.id) || slugify(`${titulo}-${categoria}`) || `video-${Date.now()}`;
 
   return {
-    titulo: limparTexto(base.titulo),
+    id: idGerado,
+    titulo,
     descricao: limparTexto(base.descricao),
-    categoria: limparTexto(base.categoria),
+    categoria,
+    autor: limparTexto(base.autor),
     thumbnailUrl,
     thumbnailSecureUrl,
+    thumbnail: thumbnailSecureUrl || thumbnailUrl || "",
     thumbnailPublicId: limparTexto(base.thumbnailPublicId),
     videoUrl,
     videoSecureUrl,
+    urlVideo: videoSecureUrl || videoUrl || "",
+    src: videoSecureUrl || videoUrl || "",
+    previewUrl: videoSecureUrl || videoUrl || "",
     videoPublicId: limparTexto(base.videoPublicId),
     destaque: toBool(base.destaque),
+    lancamento: toBool(base.lancamento),
+    emAlta: toBool(base.emAlta),
+    topSemanal: toBool(base.topSemanal),
+    topVideos: toBool(base.destaque) || toBool(base.topSemanal),
     ordem: limparNumero(base.ordem, 0),
-    duracao: limparNumero(base.duracao, 0),
+    duracao: limparTexto(base.duracao),
     tags: Array.isArray(base.tags) ? base.tags.filter(Boolean) : [],
     ativo: typeof base.ativo === "boolean" ? base.ativo : true,
+    views: limparNumero(base.views, 0),
+    likes: limparNumero(base.likes, 0),
+    favoritos: limparNumero(base.favoritos, 0),
     atualizadoEm: serverTimestamp()
   };
 }
@@ -348,11 +403,15 @@ function getFormValues() {
     titulo: els.titulo?.value || "",
     descricao: els.descricao?.value || "",
     categoria: els.categoria?.value || "",
+    autor: els.autor?.value || "",
     thumbnailUrl: els.thumbnailUrl?.value || "",
     videoUrl: els.videoUrl?.value || "",
     destaque: els.destaque?.checked || false,
+    lancamento: els.lancamento?.checked || false,
+    emAlta: els.emAlta?.checked || false,
+    topSemanal: els.topSemanal?.checked || false,
     ordem: els.ordem?.value || 0,
-    duracao: els.duracao?.value || 0,
+    duracao: els.duracao?.value || "",
     tags: splitTags(els.tags?.value || "")
   };
 }
@@ -363,22 +422,22 @@ function validatePayload(payload) {
   if (!payload.categoria) throw new Error("Informe a categoria.");
 
   if (!payload.thumbnailUrl && !payload.thumbnailSecureUrl) {
-    throw new Error("Informe a thumbnail por URL ou upload.");
+    throw new Error("Envie a thumbnail do vídeo.");
   }
 
   if (!payload.videoUrl && !payload.videoSecureUrl) {
-    throw new Error("Informe o vídeo por URL ou upload.");
+    throw new Error("Envie o arquivo de vídeo.");
   }
 }
 
 function limparFormulario() {
   state.editingId = null;
-
   els.form?.reset?.();
   resetPreviews();
   setStatus("Formulário limpo.");
   if (els.btnSubmit) {
     els.btnSubmit.textContent = "Salvar vídeo";
+    els.btnSubmit.disabled = false;
   }
 }
 
@@ -388,11 +447,15 @@ function preencherFormulario(video) {
   if (els.titulo) els.titulo.value = video.titulo || "";
   if (els.descricao) els.descricao.value = video.descricao || "";
   if (els.categoria) els.categoria.value = video.categoria || "";
+  if (els.autor) els.autor.value = video.autor || "";
   if (els.thumbnailUrl) els.thumbnailUrl.value = video.thumbnailSecureUrl || video.thumbnailUrl || "";
   if (els.videoUrl) els.videoUrl.value = video.videoSecureUrl || video.videoUrl || "";
   if (els.destaque) els.destaque.checked = !!video.destaque;
+  if (els.lancamento) els.lancamento.checked = !!video.lancamento;
+  if (els.emAlta) els.emAlta.checked = !!video.emAlta;
+  if (els.topSemanal) els.topSemanal.checked = !!video.topSemanal;
   if (els.ordem) els.ordem.value = video.ordem ?? 0;
-  if (els.duracao) els.duracao.value = video.duracao ?? 0;
+  if (els.duracao) els.duracao.value = video.duracao ?? "";
   if (els.tags) els.tags.value = Array.isArray(video.tags) ? video.tags.join(", ") : "";
 
   renderThumbPreview(video.thumbnailSecureUrl || video.thumbnailUrl || "");
@@ -421,13 +484,23 @@ async function excluirVideo(id, titulo = "") {
   }
 }
 
+function atualizarResumoLista() {
+  if (els.contador) {
+    els.contador.textContent = `${state.videos.length} vídeo(s)`;
+  }
+
+  if (els.vazio) {
+    els.vazio.style.display = state.videos.length ? "none" : "flex";
+  }
+}
+
 function renderLista(videos = []) {
   if (!els.lista) return;
 
+  atualizarResumoLista();
+
   if (!videos.length) {
-    els.lista.innerHTML = `
-      <div class="admin-video-empty">Nenhum vídeo cadastrado ainda.</div>
-    `;
+    els.lista.innerHTML = "";
     return;
   }
 
@@ -446,9 +519,9 @@ function renderLista(videos = []) {
             <p style="margin:0 0 8px;color:#cfcfcf;">${video.descricao || ""}</p>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
               <span style="padding:6px 10px;border-radius:999px;background:#1a1a1a;color:#fff;">${video.categoria || "Sem categoria"}</span>
-              <span style="padding:6px 10px;border-radius:999px;background:#1a1a1a;color:#fff;">Ordem: ${video.ordem ?? 0}</span>
-              <span style="padding:6px 10px;border-radius:999px;background:#1a1a1a;color:#fff;">Duração: ${video.duracao ?? 0}</span>
+              <span style="padding:6px 10px;border-radius:999px;background:#1a1a1a;color:#fff;">Duração: ${video.duracao || "—"}</span>
               ${video.destaque ? `<span style="padding:6px 10px;border-radius:999px;background:#2c0f0f;color:#fff;border:1px solid #e50914;">Destaque</span>` : ""}
+              ${video.emAlta ? `<span style="padding:6px 10px;border-radius:999px;background:#1b1010;color:#fff;border:1px solid #ff6b6b;">Em alta</span>` : ""}
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <button type="button" data-action="editar" data-id="${video.id}" style="padding:10px 14px;border-radius:12px;border:none;background:#2b2b2b;color:#fff;cursor:pointer;">Editar</button>
@@ -479,7 +552,7 @@ function renderLista(videos = []) {
 
 async function carregarVideos() {
   try {
-    const snap = await getDocs(query(collection(db, "videos"), orderBy("ordem", "asc")));
+    const snap = await getDocs(query(collection(db, "videos"), orderBy("criadoEm", "desc")));
     state.videos = snap.docs.map((docSnap) => ({
       id: docSnap.id,
       ...docSnap.data()
@@ -496,10 +569,14 @@ async function handleSubmit(event) {
   event.preventDefault();
 
   try {
+    if (els.btnSubmit) {
+      els.btnSubmit.disabled = true;
+      els.btnSubmit.textContent = state.editingId ? "Atualizando..." : "Salvando...";
+    }
+
     setStatus("Preparando envio...");
 
     const values = getFormValues();
-
     const thumbFile = getFile(els.thumbnailFile);
     const videoFile = getFile(els.videoFile);
 
@@ -535,15 +612,17 @@ async function handleSubmit(event) {
       titulo: values.titulo,
       descricao: values.descricao,
       categoria: values.categoria,
+      autor: values.autor,
       thumbnailUrl: thumbnailUpload.url || values.thumbnailUrl || "",
-      thumbnailSecureUrl:
-        thumbnailUpload.secureUrl || thumbnailUpload.url || values.thumbnailUrl || "",
+      thumbnailSecureUrl: thumbnailUpload.secureUrl || thumbnailUpload.url || values.thumbnailUrl || "",
       thumbnailPublicId: thumbnailUpload.publicId || "",
       videoUrl: videoUpload.url || values.videoUrl || "",
-      videoSecureUrl:
-        videoUpload.secureUrl || videoUpload.url || values.videoUrl || "",
+      videoSecureUrl: videoUpload.secureUrl || videoUpload.url || values.videoUrl || "",
       videoPublicId: videoUpload.publicId || "",
       destaque: values.destaque,
+      lancamento: values.lancamento,
+      emAlta: values.emAlta,
+      topSemanal: values.topSemanal,
       ordem: values.ordem,
       duracao: values.duracao,
       tags: values.tags,
@@ -571,16 +650,28 @@ async function handleSubmit(event) {
     console.error("[admin-videos] Erro ao salvar vídeo:", error);
     setStatus(error.message || "Erro ao salvar vídeo.", true);
     alertar(error.message || "Erro ao salvar vídeo.");
+  } finally {
+    if (els.btnSubmit) {
+      els.btnSubmit.disabled = false;
+      els.btnSubmit.textContent = state.editingId ? "Atualizar vídeo" : "Salvar vídeo";
+    }
   }
 }
 
 function bind() {
-  els.form?.addEventListener("submit", handleSubmit);
+  if (!els.form) {
+    console.error("[admin-videos] Formulário não encontrado.");
+    return;
+  }
+
+  els.form.addEventListener("submit", handleSubmit);
+
   els.btnReset?.addEventListener("click", () => {
     setTimeout(() => limparFormulario(), 0);
   });
 
   bindPreviewEvents();
+  resetPreviews();
 }
 
 function init() {
