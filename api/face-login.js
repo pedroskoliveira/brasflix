@@ -1,89 +1,91 @@
 import { adminAuth, adminDb } from "./_lib/firebase-admin.js";
 
-function calcularDistanciaEuclidiana(vetorA = [], vetorB = []) {
-  if (!Array.isArray(vetorA) || !Array.isArray(vetorB)) {
+function toNumericDescriptor(descriptor) {
+  if (!Array.isArray(descriptor)) {
+    throw new Error("Descriptor facial ausente ou inválido.");
+  }
+
+  if (descriptor.length !== 128) {
+    throw new Error("Descriptor facial inválido. Esperado array com 128 posições.");
+  }
+
+  const parsed = descriptor.map((item) => Number(item));
+
+  if (parsed.some((n) => Number.isNaN(n))) {
+    throw new Error("Descriptor facial contém valores inválidos.");
+  }
+
+  return parsed;
+}
+
+function euclideanDistance(a = [], b = []) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
     return Number.POSITIVE_INFINITY;
   }
 
-  if (vetorA.length === 0 || vetorB.length === 0 || vetorA.length !== vetorB.length) {
-    return Number.POSITIVE_INFINITY;
+  let sum = 0;
+
+  for (let i = 0; i < a.length; i += 1) {
+    const diff = Number(a[i]) - Number(b[i]);
+    sum += diff * diff;
   }
 
-  let soma = 0;
-
-  for (let i = 0; i < vetorA.length; i += 1) {
-    const diferenca = Number(vetorA[i]) - Number(vetorB[i]);
-    soma += diferenca * diferenca;
-  }
-
-  return Math.sqrt(soma);
+  return Math.sqrt(sum);
 }
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({
-      ok: false,
-      error: "Método não permitido."
-    });
+    return res.status(405).json({ ok: false, error: "Método não permitido." });
   }
 
   try {
     const { descriptor } = req.body || {};
+    const inputDescriptor = toNumericDescriptor(descriptor);
 
-    if (!Array.isArray(descriptor) || descriptor.length === 0) {
-      return res.status(400).json({
-        ok: false,
-        error: "Descriptor facial inválido."
-      });
-    }
+    const snap = await adminDb.collection("usuarios").where("faceLoginEnabled", "==", true).get();
 
-    const descriptorAtual = descriptor.map((valor) => Number(valor));
-
-    const snapshot = await adminDb
-      .collection("usuarios")
-      .where("faceLoginEnabled", "==", true)
-      .get();
-
-    if (snapshot.empty) {
+    if (snap.empty) {
       return res.status(404).json({
         ok: false,
-        error: "Nenhum rosto cadastrado para login facial."
+        error: "Nenhum rosto cadastrado encontrado."
       });
     }
 
-    let melhorMatch = null;
+    let bestMatch = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
 
-    snapshot.forEach((documento) => {
-      const dados = documento.data() || {};
-      const embeddingSalvo = Array.isArray(dados.faceEmbedding) ? dados.faceEmbedding : [];
-      const distancia = calcularDistanciaEuclidiana(descriptorAtual, embeddingSalvo);
+    snap.forEach((docSnap) => {
+      const data = docSnap.data() || {};
+      const savedDescriptor = Array.isArray(data.faceDescriptor) ? data.faceDescriptor : null;
 
-      if (!melhorMatch || distancia < melhorMatch.distancia) {
-        melhorMatch = {
-          uid: documento.id,
-          distancia,
-          dados
+      if (!savedDescriptor || savedDescriptor.length !== 128) return;
+
+      const distance = euclideanDistance(inputDescriptor, savedDescriptor);
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestMatch = {
+          uid: data.uid || data.usuarioId || docSnap.id,
+          distance
         };
       }
     });
 
-    const LIMIAR = 0.60;
+    const THRESHOLD = 0.55;
 
-    if (!melhorMatch || melhorMatch.distancia > LIMIAR) {
+    if (!bestMatch || bestDistance > THRESHOLD) {
       return res.status(401).json({
         ok: false,
         error: "Rosto não reconhecido."
       });
     }
 
-    const customToken = await adminAuth.createCustomToken(melhorMatch.uid, {
-      authMethod: "face"
-    });
+    const customToken = await adminAuth.createCustomToken(bestMatch.uid);
 
     return res.status(200).json({
       ok: true,
-      uid: melhorMatch.uid,
-      score: melhorMatch.distancia,
+      uid: bestMatch.uid,
+      distance: Number(bestDistance.toFixed(4)),
       customToken
     });
   } catch (error) {
@@ -91,7 +93,7 @@ export default async function handler(req, res) {
 
     return res.status(500).json({
       ok: false,
-      error: error.message || "Erro interno no login facial."
+      error: error?.message || "Erro interno no login facial."
     });
   }
 }
