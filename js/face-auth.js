@@ -38,6 +38,19 @@ function status(texto) {
   if (statusEl) statusEl.textContent = texto;
 }
 
+async function safeJson(response) {
+  const raw = await response.text();
+
+  try {
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {
+      ok: false,
+      error: raw || "Resposta inválida do servidor."
+    };
+  }
+}
+
 async function loadFaceApiScriptIfNeeded() {
   if (window.faceapi) return true;
 
@@ -304,7 +317,7 @@ async function cadastrarFace() {
       })
     });
 
-    const data = await response.json();
+    const data = await safeJson(response);
 
     if (!response.ok || !data?.ok) {
       throw new Error(data?.error || "Erro ao cadastrar rosto.");
@@ -343,7 +356,7 @@ async function entrarComFace() {
       })
     });
 
-    const data = await response.json();
+    const data = await safeJson(response);
 
     if (!response.ok || !data?.ok || !data.customToken) {
       throw new Error(data?.error || "Rosto não reconhecido.");
