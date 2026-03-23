@@ -38,12 +38,10 @@ export function criarInterfaceChatUsuario() {
 
   function mostrarToast(texto) {
     if (!elementos.toasts) return;
-
     const item = document.createElement("div");
     item.className = "user-chat-toast";
     item.textContent = texto;
     elementos.toasts.appendChild(item);
-
     setTimeout(() => item.remove(), 3000);
   }
 
@@ -72,11 +70,7 @@ export function criarInterfaceChatUsuario() {
     if (!elementos.contatos) return;
 
     if (!lista.length) {
-      elementos.contatos.innerHTML = `
-        <div class="user-chat-empty">
-          Nenhum contato disponível.
-        </div>
-      `;
+      elementos.contatos.innerHTML = `<div class="user-chat-empty">Nenhum contato disponível.</div>`;
       return;
     }
 
@@ -102,30 +96,34 @@ export function criarInterfaceChatUsuario() {
 
     if (typeof aoSelecionarContato === "function") {
       elementos.contatos.querySelectorAll(".user-chat-contact-item").forEach((botao) => {
-        botao.addEventListener("click", () => {
-          aoSelecionarContato(botao.dataset.uid || "");
-        });
+        botao.addEventListener("click", () => aoSelecionarContato(botao.dataset.uid || ""));
       });
     }
   }
 
-  function renderizarMensagens(lista = [], uidAtual = "") {
+  function deveRolarAteOFim() {
+    if (!elementos.mensagens) return true;
+    const folga = 48;
+    const distancia = elementos.mensagens.scrollHeight - elementos.mensagens.scrollTop - elementos.mensagens.clientHeight;
+    return distancia <= folga;
+  }
+
+  function renderizarMensagens(lista = [], uidAtual = "", options = {}) {
     if (!elementos.mensagens) return;
+    const autoScroll = options.forceScroll || deveRolarAteOFim();
 
     if (!lista.length) {
-      elementos.mensagens.innerHTML = `
-        <div class="user-chat-empty">
-          Nenhuma mensagem ainda. Envie a primeira.
-        </div>
-      `;
+      elementos.mensagens.innerHTML = `<div class="user-chat-empty">Nenhuma mensagem ainda. Envie a primeira.</div>`;
       return;
     }
 
     elementos.mensagens.innerHTML = lista.map((mensagem) => {
       const minha = mensagem.autorId === uidAtual;
       const horario = mensagem.criadoEm
-        ? new Date(mensagem.criadoEm.toDate ? mensagem.criadoEm.toDate() : mensagem.criadoEm)
-            .toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+        ? new Date(mensagem.criadoEm.toDate ? mensagem.criadoEm.toDate() : mensagem.criadoEm).toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit"
+          })
         : "";
 
       return `
@@ -139,7 +137,11 @@ export function criarInterfaceChatUsuario() {
       `;
     }).join("");
 
-    elementos.mensagens.scrollTop = elementos.mensagens.scrollHeight;
+    if (autoScroll) {
+      requestAnimationFrame(() => {
+        elementos.mensagens.scrollTop = elementos.mensagens.scrollHeight;
+      });
+    }
   }
 
   function obterTextoBusca() {
@@ -159,7 +161,6 @@ export function criarInterfaceChatUsuario() {
 
   function definirFormularioHabilitado(habilitado) {
     if (elementos.campoMensagem) elementos.campoMensagem.disabled = !habilitado;
-
     if (elementos.formularioEnvio) {
       const botao = elementos.formularioEnvio.querySelector("button");
       if (botao) botao.disabled = !habilitado;
